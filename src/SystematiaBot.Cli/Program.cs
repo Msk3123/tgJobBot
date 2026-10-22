@@ -45,7 +45,8 @@ builder.Services
     .AddCoreServices()
     .AddPersistence(Path.Combine(stateRoot, "data", "bot.db"))
     .AddSeo(builder.Configuration)
-    .AddNews(builder.Configuration);
+    .AddNews(builder.Configuration)
+    .AddLlm(builder.Configuration, Path.Combine(AppContext.BaseDirectory, "prompts"));
 builder.Services.AddSingleton<ICityCatalog>(new JsonCityCatalog(Path.Combine(AppContext.BaseDirectory, "config", "sources.json")));
 
 using var host = builder.Build();

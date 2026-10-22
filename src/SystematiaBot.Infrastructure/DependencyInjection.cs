@@ -9,6 +9,7 @@ using SystematiaBot.Core.News;
 using SystematiaBot.Core.Seo;
 using SystematiaBot.Core.Validation;
 using SystematiaBot.Infrastructure.Export;
+using SystematiaBot.Infrastructure.Llm;
 using SystematiaBot.Infrastructure.Persistence;
 using SystematiaBot.Infrastructure.Persistence.Repositories;
 using SystematiaBot.Infrastructure.Seo;
@@ -55,6 +56,8 @@ public static class DependencyInjection
         services.AddScoped<ISeoRunRepository, SeoRunRepository>();
         services.AddScoped<ISourceRepository, SourceRepository>();
         services.AddScoped<INewsRepository, NewsRepository>();
+        services.AddScoped<IPostRepository, PostRepository>();
+        services.AddScoped<ILlmUsageRepository, LlmUsageRepository>();
         return services;
     }
 
@@ -75,6 +78,21 @@ public static class DependencyInjection
         services.AddSingleton<DedupService>();
         services.AddScoped<NewsCollectionService>();
         services.TryAddScoped<INewsScorer, NullNewsScorer>();
+        return services;
+    }
+
+    public static IServiceCollection AddLlm(this IServiceCollection services, IConfiguration configuration, string promptsDirectory)
+    {
+        services.Configure<OpenAiOptions>(configuration.GetSection(OpenAiOptions.Section));
+        services.AddSingleton<IPromptStore>(new FilePromptStore(promptsDirectory));
+
+        // To switch to Claude: register ClaudeLlmClient here instead of OpenAiLlmClient (and wrap it in the guard).
+        services.AddSingleton<OpenAiLlmClient>();
+        services.AddSingleton<LlmBudgetGuard>();
+        services.AddSingleton<ILlmClient>(sp => sp.GetRequiredService<LlmBudgetGuard>());
+
+        services.AddScoped<INewsScorer, ScoringService>();
+        services.AddScoped<RewriteService>();
         return services;
     }
 
