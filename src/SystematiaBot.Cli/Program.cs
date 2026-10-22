@@ -60,12 +60,18 @@ Console.CancelKeyPress += (_, e) =>
 var services = host.Services;
 return args[0] switch
 {
-    "seo" => await RunSeoAsync(args[1], args.Contains("--full")),
+    "seo" => await RunSeoAsync(args[1], args.Contains("--full"), OptionValue("--save-json")),
     "sources" => await CheckSourcesAsync(args.ElementAtOrDefault(1) ?? "sheptytsky"),
     _ => await CollectAsync(args.ElementAtOrDefault(1) ?? "sheptytsky")
 };
 
-async Task<int> RunSeoAsync(string url, bool full)
+string? OptionValue(string name)
+{
+    var i = Array.IndexOf(args, name);
+    return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+}
+
+async Task<int> RunSeoAsync(string url, bool full, string? saveJson)
 {
     var options = services.GetRequiredService<IOptions<SeoOptions>>().Value;
     var lastReport = DateTime.MinValue;
@@ -94,6 +100,29 @@ async Task<int> RunSeoAsync(string url, bool full)
     }
 
     Console.WriteLine($"CSV: {csvPath}");
+
+    if (saveJson is not null)
+    {
+        // Snapshot for demo mode: pages without outgoing links to keep the file small.
+        var snapshot = new SeoCrawlResult
+        {
+            StartUrl = crawl.StartUrl,
+            Site = crawl.Site,
+            SitemapUrlCount = crawl.SitemapUrlCount,
+            Pages = crawl.Pages.Select(p => new SeoPage
+            {
+                Url = p.Url, Status = p.Status, RedirectTo = p.RedirectTo, Error = p.Error, FromSitemap = p.FromSitemap, IsHtml = p.IsHtml,
+                Title = p.Title, Description = p.Description, H1 = p.H1, Canonical = p.Canonical, Robots = p.Robots, Hreflangs = p.Hreflangs,
+                Images = p.Images, ImagesWithoutAlt = p.ImagesWithoutAlt, WordCount = p.WordCount
+            }).ToList()
+        };
+        await File.WriteAllTextAsync(saveJson, System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        }));
+        Console.WriteLine($"JSON: {saveJson}");
+    }
+
     return 0;
 }
 

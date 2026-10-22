@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using SystematiaBot.Bot.Demo;
 using SystematiaBot.Bot.Handlers;
 using SystematiaBot.Bot.Hosting;
 using SystematiaBot.Bot.Jobs;
@@ -15,9 +16,11 @@ public sealed class UpdateRouter(
     IEnumerable<ITextInputHandler> textHandlers,
     MenuHandler menu,
     SeoHandler seo,
+    DemoHandler demo,
     UserStateStore state,
     BackgroundJobRunner jobs,
     BotUi ui,
+    ErrorTracker errors,
     IOptions<BotOptions> options,
     ILogger<UpdateRouter> logger)
 {
@@ -46,6 +49,7 @@ public sealed class UpdateRouter(
         catch (Exception ex)
         {
             logger.LogError(ex, "Update {UpdateId} from chat {ChatId} failed", update.Id, ctx.ChatId);
+            errors.Record("обробка повідомлення", ex);
             try
             {
                 await ui.SendAsync(ctx.ChatId, "😕 Щось пішло не так, вже записав у лог.", Keyboards.Rows(Keyboards.BackToMenu), ct);
@@ -90,7 +94,7 @@ public sealed class UpdateRouter(
                 await menu.ShowMainAsync(ctx, ct);
                 return;
             case "/seo":
-                await seo.OpenAsync(ctx, ct);
+                await DispatchCallbackAsync(ctx, Cb.SeoOpen, ct);
                 return;
             case "/status":
                 await menu.ShowStatusAsync(ctx, ct);
@@ -109,6 +113,12 @@ public sealed class UpdateRouter(
         }
 
         var current = state.Get(ctx.ChatId);
+        if (ctx.IsDemo && current.Awaiting != AwaitingInput.None)
+        {
+            await demo.HandleTextAsync(ctx, text, current, ct);
+            return;
+        }
+
         var handler = textHandlers.FirstOrDefault(h => h.Awaiting == current.Awaiting && current.Awaiting != AwaitingInput.None);
         if (handler is not null)
         {
@@ -118,7 +128,10 @@ public sealed class UpdateRouter(
 
         if (SeoHandler.TryNormalizeUrl(text, out _) && text.Contains('.') && !text.Contains(' '))
         {
-            await seo.HandleAsync(ctx, text, null, ct);
+            if (ctx.IsDemo)
+                await demo.HandleTextAsync(ctx, text, new UserState(AwaitingInput.SeoUrl), ct);
+            else
+                await seo.HandleAsync(ctx, text, null, ct);
             return;
         }
 
@@ -149,6 +162,9 @@ public sealed class UpdateRouter(
 
     private async Task<string?> DispatchCallbackAsync(ChatContext ctx, CallbackData data, CancellationToken ct)
     {
+        if (ctx.IsDemo && DemoHandler.Handles(data.Module))
+            return await demo.HandleAsync(ctx, data, ct);
+
         var handler = callbackHandlers.FirstOrDefault(h => h.Module == data.Module);
         if (handler is null)
         {

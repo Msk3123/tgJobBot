@@ -6,7 +6,7 @@ namespace SystematiaBot.Bot.Jobs;
 /// Runs long operations (collecting, rewriting, crawling) off the update loop.
 /// At most one job of a given type per chat; jobs are cancellable by the user and on shutdown.
 /// </summary>
-public sealed class BackgroundJobRunner(ILogger<BackgroundJobRunner> logger) : IHostedService
+public sealed class BackgroundJobRunner(ErrorTracker errors, ILogger<BackgroundJobRunner> logger) : IHostedService
 {
     private readonly ConcurrentDictionary<(long ChatId, string Type), (CancellationTokenSource Cts, Task Task)> _jobs = new();
     private readonly CancellationTokenSource _shutdown = new();
@@ -38,6 +38,7 @@ public sealed class BackgroundJobRunner(ILogger<BackgroundJobRunner> logger) : I
             catch (Exception ex)
             {
                 logger.LogError(ex, "Job {Type} for chat {ChatId} failed", type, chatId);
+                errors.Record($"задача {type}", ex);
             }
             finally
             {

@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using SystematiaBot.Bot;
+using SystematiaBot.Bot.Demo;
 using SystematiaBot.Bot.Handlers;
 using SystematiaBot.Bot.Hosting;
 using SystematiaBot.Bot.Jobs;
@@ -62,7 +63,10 @@ try
     builder.Services.AddSingleton<ICityCatalog>(new JsonCityCatalog(Path.Combine(paths.Config, "sources.json")));
 
     builder.Services.AddSingleton<BotUi>();
+    builder.Services.AddSingleton<DemoDataProvider>();
+    builder.Services.AddSingleton<DemoHandler>();
     builder.Services.AddSingleton<UserStateStore>();
+    builder.Services.AddSingleton<ErrorTracker>();
     builder.Services.AddSingleton<BackgroundJobRunner>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<BackgroundJobRunner>());
 
@@ -80,8 +84,10 @@ try
     builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<PostsHandler>());
     builder.Services.AddScoped<ICallbackHandler, ArticleHandler>();
     builder.Services.AddScoped<ICallbackHandler, ExportHandler>();
+    builder.Services.AddScoped<ICallbackHandler, DigestHandler>();
 
     builder.Services.AddHostedService<BotWorker>();
+    builder.Services.AddHostedService<DigestScheduler>();
 
     var host = builder.Build();
 

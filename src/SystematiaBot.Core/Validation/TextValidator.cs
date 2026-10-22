@@ -32,7 +32,8 @@ public sealed partial class TextValidator(FactChecker factChecker)
         if (!hasLink)
             issues.Add(new("NO_SOURCE_LINK", IssueLevel.Error, "Немає посилання на джерело"));
 
-        var copied = FindCopiedFragment(body, sourceTexts, TextLimits.MaxCopiedRun);
+        // Verbatim quotes are required to be exact, so they do not count as copying.
+        var copied = FindCopiedFragment(QuoteRegex().Replace(body, " "), sourceTexts, TextLimits.MaxCopiedRun);
         if (copied is not null)
             issues.Add(new("COPIED", IssueLevel.Error, $"Фрагмент скопійовано з джерела, перепиши своїми словами: «{copied}»"));
 
@@ -101,6 +102,9 @@ public sealed partial class TextValidator(FactChecker factChecker)
 
     [GeneratedRegex(@"\n[ \t]*\n")]
     private static partial Regex ParagraphSplitRegex();
+
+    [GeneratedRegex("«[^«»]*»|“[^“”]*”|\"[^\"\n]*\"")]
+    private static partial Regex QuoteRegex();
 
     [GeneratedRegex(@"https?://\S+", RegexOptions.IgnoreCase)]
     private static partial Regex UrlRegex();

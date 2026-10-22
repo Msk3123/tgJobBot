@@ -11,7 +11,7 @@ namespace SystematiaBot.Infrastructure.Llm;
 /// (Europe/Kyiv) spend reaches OpenAI:DailyBudgetUsd. Prices per token come from config.
 /// </summary>
 public sealed class LlmBudgetGuard(
-    OpenAiLlmClient inner,
+    ILlmClient inner,
     IServiceScopeFactory scopeFactory,
     IOptions<OpenAiOptions> options,
     IClock clock) : ILlmClient

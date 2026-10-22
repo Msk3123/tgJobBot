@@ -86,9 +86,8 @@ public static class DependencyInjection
         services.Configure<OpenAiOptions>(configuration.GetSection(OpenAiOptions.Section));
         services.AddSingleton<IPromptStore>(new FilePromptStore(promptsDirectory));
 
-        // To switch to Claude: register ClaudeLlmClient here instead of OpenAiLlmClient (and wrap it in the guard).
-        services.AddSingleton<OpenAiLlmClient>();
-        services.AddSingleton<LlmBudgetGuard>();
+        // To switch to Claude: replace OpenAiLlmClient with ClaudeLlmClient in the line below.
+        services.AddSingleton<LlmBudgetGuard>(sp => ActivatorUtilities.CreateInstance<LlmBudgetGuard>(sp, ActivatorUtilities.CreateInstance<OpenAiLlmClient>(sp)));
         services.AddSingleton<ILlmClient>(sp => sp.GetRequiredService<LlmBudgetGuard>());
 
         services.AddScoped<INewsScorer, ScoringService>();
