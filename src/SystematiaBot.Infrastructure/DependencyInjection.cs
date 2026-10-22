@@ -1,11 +1,14 @@
 using System.Net;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SystematiaBot.Core.Abstractions;
 using SystematiaBot.Core.Seo;
 using SystematiaBot.Core.Validation;
 using SystematiaBot.Infrastructure.Export;
+using SystematiaBot.Infrastructure.Persistence;
+using SystematiaBot.Infrastructure.Persistence.Repositories;
 using SystematiaBot.Infrastructure.Seo;
 
 namespace SystematiaBot.Infrastructure;
@@ -39,6 +42,14 @@ public static class DependencyInjection
         services.AddSingleton<SeoIssueDetector>();
         services.AddSingleton<ISeoCrawler, SeoCrawler>();
         services.AddSingleton<ISeoReportExporter, CsvExporter>();
+        return services;
+    }
+
+    public static IServiceCollection AddPersistence(this IServiceCollection services, string databasePath)
+    {
+        services.AddDbContext<BotDbContext>(o => o.UseSqlite($"Data Source={databasePath}"));
+        services.AddScoped<IUserSettingsRepository, UserSettingsRepository>();
+        services.AddScoped<ISeoRunRepository, SeoRunRepository>();
         return services;
     }
 
