@@ -112,7 +112,7 @@ public sealed class UpdateRouter(
         var handler = textHandlers.FirstOrDefault(h => h.Awaiting == current.Awaiting && current.Awaiting != AwaitingInput.None);
         if (handler is not null)
         {
-            await handler.HandleAsync(ctx, text, current.TargetId, ct);
+            await handler.HandleAsync(ctx, text, current, ct);
             return;
         }
 

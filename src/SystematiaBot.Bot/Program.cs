@@ -56,7 +56,8 @@ try
     builder.Services
         .AddCoreServices()
         .AddPersistence(Path.Combine(paths.Data, "bot.db"))
-        .AddSeo(builder.Configuration);
+        .AddSeo(builder.Configuration)
+        .AddNews(builder.Configuration);
     builder.Services.AddSingleton<ICityCatalog>(new JsonCityCatalog(Path.Combine(paths.Config, "sources.json")));
 
     builder.Services.AddSingleton<BotUi>();
@@ -70,6 +71,9 @@ try
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<MenuHandler>());
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<SeoHandler>());
     builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<SeoHandler>());
+    builder.Services.AddScoped<NewsHandler>();
+    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<NewsHandler>());
+    builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<NewsHandler>());
 
     builder.Services.AddHostedService<BotWorker>();
 

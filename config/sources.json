@@ -1,11 +1,32 @@
 {
+  // Sources verified on 22.10.2026: each one returned posts for the last 7 days.
+  // isCityOnly = the source writes only about this city, so the locality filter is skipped.
   "cities": [
     {
       "id": "sheptytsky",
       "name": "Шептицький",
       "aliases": [ "Червоноград", "Шептицька громада" ],
-      "localTerms": [ "Шептицьк", "Червоноград", "Соснівк", "Сілець", "Гірник", "Боб'ятин", "Межиріччя" ],
-      "sources": []
+      "localTerms": [ "Шептицьк", "Червоноград", "Соснівк", "Сілець", "Сільц", "Гірник", "Боб'ятин", "Межиріч" ],
+      "sources": [
+        { "name": "Шептицька міська рада", "kind": "Telegram", "url": "https://t.me/s/sheptytska_mr", "isCityOnly": true },
+        { "name": "Ехо 80100", "kind": "Telegram", "url": "https://t.me/s/echo80100", "isCityOnly": true },
+        { "name": "ДСНС Львівщини", "kind": "Telegram", "url": "https://t.me/s/dsns_lviv" },
+        { "name": "Львівська ОВА", "kind": "Telegram", "url": "https://t.me/s/kozytskyy_maksym_official" },
+        {
+          "name": "ZAXID.NET — Шептицький",
+          "kind": "HtmlList",
+          "url": "https://zaxid.net/chervonograd_tag48789/",
+          "isCityOnly": true,
+          "selectors": {
+            "item": ".archive_page ul.list > li",
+            "title": ".news-title",
+            "link": "a[href]",
+            "date": ".time",
+            "dateFormat": "HH:mm dd-MM-yyyy",
+            "content": "#newsSummary p"
+          }
+        }
+      ]
     }
   ]
 }

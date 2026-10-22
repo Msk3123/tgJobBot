@@ -18,6 +18,9 @@ public sealed class MenuHandler(
     BackgroundJobRunner jobs,
     IUserSettingsRepository settingsRepository,
     ICityCatalog cities,
+    INewsRepository news,
+    IClock clock,
+    IOptions<NewsOptions> newsOptions,
     IOptions<BotOptions> botOptions) : ICallbackHandler
 {
     public string Module => "m";
@@ -43,7 +46,9 @@ public sealed class MenuHandler(
         var settings = await settingsRepository.GetOrCreateAsync(ctx.ChatId, botOptions.Value.DefaultCity, ct);
         var cityName = cities.Find(settings.City)?.Name ?? settings.City;
 
-        var text = $"👋 <b>Systematia Assistant</b>\nМісто: {Escape(cityName)} · Дайджест: {(settings.DigestEnabled ? "увімк" : "вимк")}";
+        var counts = await news.GetCountsAsync(settings.City, clock.UtcNow.AddDays(-newsOptions.Value.MaxAgeDays), newsOptions.Value.MinScore, ct);
+
+        var text = $"👋 <b>Systematia Assistant</b>\nМісто: {Escape(cityName)} · Дайджест: {(settings.DigestEnabled ? "увімк" : "вимк")} · Кандидатів: {counts.New}";
         await ui.ShowAsync(ctx, text, MainMenu(settings.DigestEnabled), ct);
     }
 

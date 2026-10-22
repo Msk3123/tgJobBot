@@ -50,7 +50,7 @@ public sealed class SeoHandler(
         await ui.ShowAsync(ctx, "🔍 <b>SEO-аудит</b>\nНадішли URL сайту (напр. https://maxidveri.com)", Rows(BackToMenu), ct);
     }
 
-    public async Task HandleAsync(ChatContext ctx, string text, int? targetId, CancellationToken ct)
+    public async Task HandleAsync(ChatContext ctx, string text, UserState? _, CancellationToken ct)
     {
         if (!TryNormalizeUrl(text, out var url))
         {

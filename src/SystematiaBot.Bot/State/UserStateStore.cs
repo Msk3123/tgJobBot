@@ -11,7 +11,7 @@ public enum AwaitingInput
 }
 
 /// <summary>What the bot expects from the next text message of a chat.</summary>
-public sealed record UserState(AwaitingInput Awaiting, int? TargetId = null);
+public sealed record UserState(AwaitingInput Awaiting, int? TargetId = null, string? Extra = null);
 
 /// <summary>In-memory conversation state; losing it on restart only resets "waiting for input" prompts.</summary>
 public sealed class UserStateStore
@@ -21,7 +21,7 @@ public sealed class UserStateStore
 
     public UserState Get(long chatId) => _states.GetValueOrDefault(chatId, new UserState(AwaitingInput.None));
 
-    public void Set(long chatId, AwaitingInput awaiting, int? targetId = null) => _states[chatId] = new UserState(awaiting, targetId);
+    public void Set(long chatId, AwaitingInput awaiting, int? targetId = null, string? extra = null) => _states[chatId] = new UserState(awaiting, targetId, extra);
 
     public void Reset(long chatId) => _states.TryRemove(chatId, out _);
 

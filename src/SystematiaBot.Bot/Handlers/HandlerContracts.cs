@@ -17,5 +17,5 @@ public interface ITextInputHandler
 {
     AwaitingInput Awaiting { get; }
 
-    Task HandleAsync(ChatContext ctx, string text, int? targetId, CancellationToken ct);
+    Task HandleAsync(ChatContext ctx, string text, UserState? state, CancellationToken ct);
 }
