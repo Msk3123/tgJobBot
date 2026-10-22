@@ -78,6 +78,8 @@ try
     builder.Services.AddScoped<PostsHandler>();
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<PostsHandler>());
     builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<PostsHandler>());
+    builder.Services.AddScoped<ICallbackHandler, ArticleHandler>();
+    builder.Services.AddScoped<ICallbackHandler, ExportHandler>();
 
     builder.Services.AddHostedService<BotWorker>();
 

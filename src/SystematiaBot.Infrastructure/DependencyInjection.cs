@@ -93,6 +93,7 @@ public static class DependencyInjection
 
         services.AddScoped<INewsScorer, ScoringService>();
         services.AddScoped<RewriteService>();
+        services.AddSingleton<IDocxExporter, DocxExporter>();
         return services;
     }
 

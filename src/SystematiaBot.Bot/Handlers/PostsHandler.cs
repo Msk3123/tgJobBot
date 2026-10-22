@@ -70,10 +70,8 @@ public sealed class PostsHandler(
             return null;
         }
 
-        var jobCtx = Detached(ctx);
-        var ids = pending.Select(p => p.Id).ToList();
-        return jobs.TryStart(ctx.ChatId, RewriteJob, token => RewriteManyAsync(jobCtx, city, ids, picked.Count, token))
-            ? $"Пишу {pending.Count} пост(и)"
+        return StartRewrite(ctx, city, pending.Select(p => p.Id).ToList(), PostKind.Social)
+            ? $"Пишу {Plural(pending.Count, "пост", "пости", "постів")}"
             : "Рерайт уже йде";
     }
 
@@ -84,13 +82,16 @@ public sealed class PostsHandler(
             return "Пост не знайдено";
 
         var city = await newsHandler.CurrentCityAsync(ctx, ct);
-        var jobCtx = Detached(ctx);
-        return jobs.TryStart(ctx.ChatId, RewriteJob, token => RewriteManyAsync(jobCtx, city, [post.NewsItemId], 1, token, post.Kind))
-            ? "Переписую"
-            : "Рерайт уже йде";
+        return StartRewrite(ctx, city, [post.NewsItemId], post.Kind) ? "Переписую" : "Рерайт уже йде";
     }
 
-    private async Task RewriteManyAsync(ChatContext ctx, CityConfig city, IReadOnlyList<int> newsIds, int total, CancellationToken ct, PostKind kind = PostKind.Social)
+    public bool StartRewrite(ChatContext ctx, CityConfig city, IReadOnlyList<int> newsIds, PostKind kind)
+    {
+        var jobCtx = Detached(ctx);
+        return jobs.TryStart(ctx.ChatId, RewriteJob, token => RewriteManyAsync(jobCtx, city, newsIds, token, kind));
+    }
+
+    private async Task RewriteManyAsync(ChatContext ctx, CityConfig city, IReadOnlyList<int> newsIds, CancellationToken ct, PostKind kind = PostKind.Social)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var rewriter = scope.ServiceProvider.GetRequiredService<RewriteService>();
