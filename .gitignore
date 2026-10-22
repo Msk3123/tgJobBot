@@ -1,0 +1,13 @@
+bin/
+obj/
+data/*.db
+data/*.db-*
+logs/
+exports/
+*.user
+secrets.json
+.env
+.idea/
+.vs/
+*.swp
+TestResults/
