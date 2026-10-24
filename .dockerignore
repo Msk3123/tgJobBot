@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+data/
+logs/
+exports/
+tests/
+.git/
+.idea/
+.vs/
+*.user
+.env
+secrets.json
