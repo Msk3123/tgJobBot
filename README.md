@@ -44,7 +44,7 @@ dotnet user-secrets set "Bot:OwnerId"       "<твій Telegram ID>" --project s
 dotnet run --project src/SystematiaBot.Bot
 ```
 
-- Модель OpenAI задається в `config/appsettings.json` → `OpenAI:Model` (там стоїть `SET_ME`, без моделі AI-кроки вимкнені, решта працює). Там само — денний бюджет і ціни за мільйон токенів для `LlmBudgetGuard`.
+- Модель OpenAI задається в `config/appsettings.json` → `OpenAI:Model` (зараз `gpt-6.1-sol`; без ключа AI-кроки вимкнені, решта працює). Там само — денний бюджет і ціни за мільйон токенів для `LlmBudgetGuard`.
 - Свій Telegram ID видно в лозі після першого `/start` (`/start from chat …, user …`).
 - Секрети — тільки в user-secrets або змінних середовища (`Telegram__BotToken` тощо), у репозиторії їх немає.
 - БД (`data/bot.db`), логи (`logs/`) і звіти (`exports/`) створюються в корені репозиторію.
