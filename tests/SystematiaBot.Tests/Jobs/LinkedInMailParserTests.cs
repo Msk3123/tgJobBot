@@ -43,4 +43,35 @@ public class LinkedInMailParserTests
     {
         LinkedInMailParser.Parse("Привіт! Подивіться, хто переглядав ваш профіль: https://www.linkedin.com/me/profile-views/").Kind.ShouldBe(MailKind.Other);
     }
+
+    [Fact]
+    public void Recommendation_mail_section_headers_with_search_links_are_not_vacancies()
+    {
+        const string text = """
+            Розгорнути пошук
+
+            Рекомендації на основі вашої діяльності.
+
+            Віддалена робота для пошуку вакансій
+            https://www.linkedin.com/comm/jobs/search-results/?keywords=x&originToLandingJobPostings=4200000001,4200000002&otpToken=AAA
+
+            Middle .NET Engineer
+            Acme Soft
+            Lviv
+            Переглянути вакансію: https://www.linkedin.com/comm/jobs/view/4200000001/?trackingId=BBB&otpToken=CCC
+
+            ---------------------------------------------------------
+
+            Junior AI/ML Engineer (GenAI, AWS)
+            Example Corp
+            Ukraine
+            Подати заявку за допомогою резюме і профілю
+            Переглянути вакансію: https://www.linkedin.com/comm/jobs/view/4200000002/?trackingId=DDD&otpToken=EEE
+            """;
+
+        var mail = LinkedInMailParser.Parse(text);
+
+        mail.Vacancies.Select(v => (v.Title, v.Company)).ShouldBe([("Middle .NET Engineer", "Acme Soft"), ("Junior AI/ML Engineer (GenAI, AWS)", "Example Corp")]);
+        mail.Vacancies[1].Details.ShouldBe("Ukraine · Подати заявку за допомогою резюме і профілю");
+    }
 }
