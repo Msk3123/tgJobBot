@@ -35,11 +35,10 @@ public static class GoogleOAuth
     public const string AuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
     public const string TokenEndpoint = "https://oauth2.googleapis.com/token";
 
-    /// <summary>Read-only mail plus calendar events (for interview invites). Nothing that can send, delete or modify mail.</summary>
+    /// <summary>Read-only mail and nothing else: the bot cannot send, delete or modify mail. Calendar comes back only with a feature that uses it.</summary>
     public static readonly string[] Scopes =
     [
-        "https://www.googleapis.com/auth/gmail.readonly",
-        "https://www.googleapis.com/auth/calendar.events"
+        "https://www.googleapis.com/auth/gmail.readonly"
     ];
 
     public static (string Verifier, string Challenge) CreatePkce()

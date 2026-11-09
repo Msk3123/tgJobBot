@@ -68,8 +68,8 @@ flowchart LR
 ### 1. Google Cloud: доступ до пошти (≈5 хв, один раз)
 
 1. https://console.cloud.google.com → створи проєкт `job-hunter`.
-2. **APIs & Services → Library** → увімкни **Gmail API** і **Google Calendar API**.
-3. **Google Auth Platform → Branding**: назва застосунку і твій email. **Audience**: External.
+2. **APIs & Services → Library** → увімкни **Gmail API**.
+3. **Google Auth Platform → Branding**: назва застосунку, твій email, а також *Application home page* (посилання на репозиторій), *Privacy policy* (`PRIVACY.md` з репозиторію) і *Authorized domain* під них. Без цих посилань кнопка *Publish app* неактивна. **Audience**: External.
 4. **Audience → Publish app** (статус *In production*).
    - Навіщо: у статусі *Testing* Google видає refresh token, який живе 7 днів. Через тиждень бот осліпне.
    - Чого очікувати: побачиш попередження «Google hasn't verified this app». Для особистого застосунку це нормально: тисни *Advanced → Go to … (unsafe)*.
