@@ -4,6 +4,7 @@ using Shouldly;
 using SystematiaBot.Bot.Hosting;
 using SystematiaBot.Core.Abstractions;
 using SystematiaBot.Core.Entities;
+using SystematiaBot.Core.Jobs;
 
 namespace SystematiaBot.Tests.Bot;
 
@@ -30,7 +31,7 @@ public sealed class OwnerSeedTests : IDisposable
         await Import();
 
         _settings.Stored.Profile.ShouldBe(".NET developer, Lviv");
-        _settings.Stored.CvJson.ShouldNotBeNull().ShouldContain("\"name\":\"Test\"");
+        CvData.TryParse(_settings.Stored.CvJson.ShouldNotBeNull(), out _).ShouldNotBeNull().Name.ShouldBe("Test");
         File.Exists(Path.Combine(_dir, OwnerSeed.ProfileFile + ".imported")).ShouldBeTrue();
         File.Exists(Path.Combine(_dir, OwnerSeed.CvFile)).ShouldBeFalse();
         _settings.Saves.ShouldBe(1);
