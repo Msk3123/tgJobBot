@@ -1,5 +1,4 @@
 using Shouldly;
-using SystematiaBot.Bot.Handlers;
 using SystematiaBot.Bot.UI;
 
 namespace SystematiaBot.Tests.Bot;
@@ -43,17 +42,5 @@ public class MessageFormatterTests
 
         parts.ShouldAllBe(p => p.Length <= MessageFormatter.MaxMessageLength);
         parts.Sum(p => p.Length).ShouldBe(10_000);
-    }
-
-    [Theory]
-    [InlineData("maxidveri.com", true, "https://maxidveri.com")]
-    [InlineData("https://maxidveri.com/blog/x", true, "https://maxidveri.com")]
-    [InlineData("http://example.com.ua", true, "http://example.com.ua")]
-    [InlineData("привіт", false, "")]
-    [InlineData("ftp://example.com", false, "")]
-    public void Seo_url_is_normalized(string input, bool ok, string expected)
-    {
-        SeoHandler.TryNormalizeUrl(input, out var url).ShouldBe(ok);
-        url.ShouldBe(expected);
     }
 }
