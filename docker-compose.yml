@@ -1,0 +1,12 @@
+# Job Hunter bot. Secrets come from .env next to this file (never commit it, see .env.example).
+services:
+  jobhunter:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Europe/Kyiv
+    volumes:
+      - ./data:/app/data   # SQLite: vacancies, conversations, your profile
+      - ./logs:/app/logs
+    # Long polling: the bot only makes outbound requests, no ports to publish.
