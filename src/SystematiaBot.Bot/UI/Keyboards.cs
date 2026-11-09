@@ -17,9 +17,11 @@ public static class Keyboards
 
     public static InlineKeyboardButton[] BackToMenu => [Btn("⬅️ Меню", Cb.MainMenu)];
 
-    public static InlineKeyboardMarkup MainMenu(bool digestEnabled) => Rows(
-        [Btn("📰 Новини", new CallbackData("n", "menu")), Btn("🔍 SEO-аудит", Cb.SeoOpen)],
-        [Btn($"⏰ Дайджест: {(digestEnabled ? "увімк" : "вимк")}", Cb.DigestToggle), Btn("ℹ️ Статус", Cb.Status)]);
+    public static InlineKeyboardMarkup MainMenu(int newCount, int conversations, bool digestEnabled) => Rows(
+        [Btn($"🆕 Нові ({newCount})", Cb.VacancyList("new")), Btn("📋 Мої заявки", Cb.VacancyList("act"))],
+        [Btn($"📩 Відповіді ({conversations})", Cb.Conversations()), Btn("🔄 Перевірити пошту", Cb.Sync)],
+        [Btn("👤 Профіль", Cb.Profile), Btn($"⏰ Дайджест: {(digestEnabled ? "увімк" : "вимк")}", Cb.DigestToggle)],
+        [Btn("🗄 Архів", Cb.VacancyList("arc")), Btn("ℹ️ Статус", Cb.Status)]);
 
     public static InlineKeyboardMarkup CancelJob => Rows([Btn("⛔ Скасувати", Cb.CancelJob)]);
 }

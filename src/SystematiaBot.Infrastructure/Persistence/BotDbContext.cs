@@ -6,10 +6,8 @@ namespace SystematiaBot.Infrastructure.Persistence;
 
 public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbContext(options)
 {
-    public DbSet<Source> Sources => Set<Source>();
-    public DbSet<NewsItem> NewsItems => Set<NewsItem>();
-    public DbSet<Post> Posts => Set<Post>();
-    public DbSet<SeoRun> SeoRuns => Set<SeoRun>();
+    public DbSet<Vacancy> Vacancies => Set<Vacancy>();
+    public DbSet<MailEvent> MailEvents => Set<MailEvent>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<LlmUsage> LlmUsages => Set<LlmUsage>();
 
@@ -17,41 +15,34 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     {
         // SQLite cannot compare or sort DateTimeOffset natively; all values are stored in UTC as sortable longs.
         builder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();
-        builder.Properties<SourceKind>().HaveConversion<string>().HaveMaxLength(16);
-        builder.Properties<NewsStatus>().HaveConversion<string>().HaveMaxLength(16);
-        builder.Properties<RejectReason>().HaveConversion<string>().HaveMaxLength(16);
-        builder.Properties<PostKind>().HaveConversion<string>().HaveMaxLength(16);
-        builder.Properties<SeoMode>().HaveConversion<string>().HaveMaxLength(16);
+        builder.Properties<VacancyStatus>().HaveConversion<string>().HaveMaxLength(16);
+        builder.Properties<MailKind>().HaveConversion<string>().HaveMaxLength(16);
     }
 
     protected override void OnModelCreating(ModelBuilder model)
     {
-        model.Entity<Source>(e =>
+        model.Entity<Vacancy>(e =>
         {
-            e.HasIndex(s => new { s.City, s.Url }).IsUnique();
-            e.Property(s => s.City).HasMaxLength(64);
+            e.HasIndex(v => new { v.Source, v.ExternalId }).IsUnique();
+            e.HasIndex(v => v.Status);
+            e.Property(v => v.Source).HasMaxLength(32);
+            e.Property(v => v.ExternalId).HasMaxLength(64);
         });
 
-        model.Entity<NewsItem>(e =>
+        model.Entity<MailEvent>(e =>
         {
-            e.HasIndex(n => new { n.SourceId, n.Url }).IsUnique();
-            e.HasIndex(n => new { n.City, n.Status });
-            e.HasIndex(n => n.ContentHash);
-            e.HasOne(n => n.Source).WithMany().HasForeignKey(n => n.SourceId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(m => m.GmailId).IsUnique();
+            e.HasIndex(m => m.Kind);
+            e.Property(m => m.GmailId).HasMaxLength(64);
+            e.HasOne(m => m.Vacancy).WithMany().HasForeignKey(m => m.VacancyId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        model.Entity<Post>(e =>
-        {
-            e.HasIndex(p => new { p.NewsItemId, p.Kind });
-            e.HasOne(p => p.NewsItem).WithMany().HasForeignKey(p => p.NewsItemId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        model.Entity<SeoRun>(e => e.HasIndex(r => r.ChatId));
         model.Entity<UserSettings>(e =>
         {
             e.HasKey(u => u.ChatId);
             e.Property(u => u.ChatId).ValueGeneratedNever();
         });
+
         model.Entity<LlmUsage>(e => e.HasIndex(u => u.Day));
     }
 }

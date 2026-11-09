@@ -7,7 +7,6 @@ namespace SystematiaBot.Bot.UI;
 public static class MessageFormatter
 {
     public const int MaxMessageLength = 4096;
-    public const string DemoBanner = "🧪 <b>Демо-режим</b>";
 
     private static readonly CultureInfo Uk = CultureInfo.GetCultureInfo("uk-UA");
 

@@ -7,7 +7,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace SystematiaBot.Bot.UI;
 
-/// <summary>Thin layer over the Telegram client: screens edited in place, HTML, demo banner, long-message splitting.</summary>
+/// <summary>Thin layer over the Telegram client: screens edited in place, HTML, long-message splitting.</summary>
 public sealed class BotUi(ITelegramBotClient bot, ILogger<BotUi> logger)
 {
     private static readonly LinkPreviewOptions NoPreview = new() { IsDisabled = true };
@@ -15,7 +15,7 @@ public sealed class BotUi(ITelegramBotClient bot, ILogger<BotUi> logger)
     /// <summary>Shows a menu screen: edits the callback's message when possible, otherwise sends a new one.</summary>
     public async Task<int> ShowAsync(ChatContext ctx, string html, InlineKeyboardMarkup? markup, CancellationToken ct)
     {
-        var text = WithBanner(ctx, html);
+        var text = html;
         if (ctx.MessageId is { } messageId && text.Length <= MessageFormatter.MaxMessageLength)
         {
             if (await TryEditAsync(ctx.ChatId, messageId, text, markup, ct))
@@ -42,7 +42,7 @@ public sealed class BotUi(ITelegramBotClient bot, ILogger<BotUi> logger)
     }
 
     public Task<int> SendAsync(ChatContext ctx, string html, InlineKeyboardMarkup? markup, CancellationToken ct) =>
-        SendAsync(ctx.ChatId, WithBanner(ctx, html), markup, ct);
+        SendAsync(ctx.ChatId, html, markup, ct);
 
     public async Task<bool> TryEditAsync(long chatId, int messageId, string html, InlineKeyboardMarkup? markup, CancellationToken ct)
     {
@@ -88,8 +88,6 @@ public sealed class BotUi(ITelegramBotClient bot, ILogger<BotUi> logger)
         var id = await SendAsync(ctx, html, Keyboards.CancelJob, ct);
         return new ProgressMessage(this, ctx, id);
     }
-
-    public static string WithBanner(ChatContext ctx, string html) => ctx.IsDemo ? $"{MessageFormatter.DemoBanner}\n{html}" : html;
 }
 
 /// <summary>A single "⏳ …" message that is edited in place, at most once every 2 seconds.</summary>
@@ -108,13 +106,13 @@ public sealed class ProgressMessage(BotUi ui, ChatContext ctx, int messageId)
 
         _lastText = html;
         _lastEdit = DateTime.UtcNow;
-        await ui.TryEditAsync(ctx.ChatId, messageId, BotUi.WithBanner(ctx, html), Keyboards.CancelJob, ct);
+        await ui.TryEditAsync(ctx.ChatId, messageId, html, Keyboards.CancelJob, ct);
     }
 
     /// <summary>Replaces the progress text with the final result (no cancel button).</summary>
     public async Task CompleteAsync(string html, InlineKeyboardMarkup? markup, CancellationToken ct)
     {
-        if (!await ui.TryEditAsync(ctx.ChatId, messageId, BotUi.WithBanner(ctx, html), markup, ct))
+        if (!await ui.TryEditAsync(ctx.ChatId, messageId, html, markup, ct))
             await ui.SendAsync(ctx, html, markup, ct);
     }
 }

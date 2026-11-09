@@ -7,5 +7,5 @@ namespace SystematiaBot.Infrastructure.Persistence;
 public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<BotDbContext>
 {
     public BotDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<BotDbContext>().UseSqlite("Data Source=data/bot.db").Options);
+        new(new DbContextOptionsBuilder<BotDbContext>().UseSqlite("Data Source=data/jobhunter.db").Options);
 }

@@ -6,7 +6,7 @@ using SystematiaBot.Bot.Routing;
 using SystematiaBot.Bot.State;
 using SystematiaBot.Bot.UI;
 using SystematiaBot.Core.Abstractions;
-using SystematiaBot.Core.News;
+using SystematiaBot.Core.Entities;
 using SystematiaBot.Infrastructure.Llm;
 using static SystematiaBot.Bot.UI.Keyboards;
 using static SystematiaBot.Bot.UI.MessageFormatter;
@@ -17,15 +17,13 @@ public sealed class MenuHandler(
     BotUi ui,
     UserStateStore state,
     BackgroundJobRunner jobs,
+    SyncCoordinator coordinator,
     IUserSettingsRepository settingsRepository,
-    ICityCatalog cities,
-    INewsRepository news,
-    IClock clock,
-    IOptions<NewsOptions> newsOptions,
-    IOptions<BotOptions> botOptions,
-    ISourceRepository sources,
+    IVacancyRepository vacancies,
+    IMailbox mailbox,
     LlmBudgetGuard llm,
     IOptions<OpenAiOptions> openAiOptions,
+    IOptions<BotOptions> botOptions,
     ErrorTracker errors) : ICallbackHandler
 {
     public string Module => "m";
@@ -41,6 +39,14 @@ public sealed class MenuHandler(
             case "status":
                 await ShowStatusAsync(ctx, ct);
                 return null;
+            case "sync":
+                return await StartSyncAsync(ctx, ct);
+            case "digest":
+                var settings = await settingsRepository.GetOrCreateAsync(ctx.ChatId, ct);
+                settings.DigestEnabled = !settings.DigestEnabled;
+                await settingsRepository.SaveAsync(settings, ct);
+                await ShowMainAsync(ctx, ct);
+                return settings.DigestEnabled ? $"Дайджест щодня о {botOptions.Value.DigestTime}" : "Дайджест вимкнено";
             default:
                 return null;
         }
@@ -48,39 +54,57 @@ public sealed class MenuHandler(
 
     public async Task ShowMainAsync(ChatContext ctx, CancellationToken ct)
     {
-        var settings = await settingsRepository.GetOrCreateAsync(ctx.ChatId, botOptions.Value.DefaultCity, ct);
-        var cityName = cities.Find(settings.City)?.Name ?? settings.City;
+        var settings = await settingsRepository.GetOrCreateAsync(ctx.ChatId, ct);
+        var counts = await vacancies.GetCountsAsync(ct);
+        int Count(VacancyStatus s) => counts.GetValueOrDefault(s);
 
-        var counts = await news.GetCountsAsync(settings.City, clock.UtcNow.AddDays(-newsOptions.Value.MaxAgeDays), newsOptions.Value.MinScore, ct);
+        var sb = new StringBuilder("🎯 <b>Job Hunter</b>\n\n");
+        sb.AppendLine($"🆕 Нові: {Count(VacancyStatus.New)} · ✍️ Чернетки: {Count(VacancyStatus.Drafted)} · 📤 Подано: {Count(VacancyStatus.Applied)}");
+        sb.AppendLine($"📩 Відповіді: {Count(VacancyStatus.Replied)} · 🗓 Співбесіди: {Count(VacancyStatus.Interview)} · ❌ Відмови: {Count(VacancyStatus.Rejected)}");
+        sb.AppendLine();
+        sb.AppendLine(mailbox.IsConfigured
+            ? $"📬 Пошта: {(settings.LastMailSyncAt is { } at ? "перевірено " + JobViews.Date(at) : "ще не перевіряли")}"
+            : "⚠️ Gmail не підключено — бот не бачить листів Djinni");
+        sb.AppendLine(string.IsNullOrWhiteSpace(settings.Profile)
+            ? "⚠️ Профіль порожній — вакансії не оцінюються. Натисни «👤 Профіль»."
+            : $"👤 Профіль: {Plural(settings.Profile.Length, "символ", "символи", "символів")}");
+        sb.Append("\n💡 Надішли посилання на вакансію djinni.co/jobs/…, і я її оціню та напишу відгук.");
 
-        var text = $"👋 <b>Systematia Assistant</b>\nМісто: {Escape(cityName)} · Дайджест: {(settings.DigestEnabled ? "увімк" : "вимк")} · Кандидатів: {counts.New}";
-        await ui.ShowAsync(ctx, text, MainMenu(settings.DigestEnabled), ct);
+        await ui.ShowAsync(ctx, sb.ToString(), MainMenu(Count(VacancyStatus.New), Count(VacancyStatus.Replied), settings.DigestEnabled), ct);
+    }
+
+    public async Task<string?> StartSyncAsync(ChatContext ctx, CancellationToken ct)
+    {
+        if (jobs.IsRunning(ctx.ChatId, "sync"))
+            return "Вже перевіряю пошту…";
+
+        var progress = await ui.StartProgressAsync(ctx, "⏳ Перевіряю пошту…", ct);
+        jobs.TryStart(ctx.ChatId, "sync", async jobCt =>
+        {
+            var outcome = await coordinator.RunAsync(ctx.ChatId, jobCt);
+            var text = outcome switch
+            {
+                { Skipped: true } => "⏳ Пошта вже перевіряється за розкладом, нові картки прийдуть окремими повідомленнями.",
+                { Error: { } error } => $"⚠️ <b>Не вдалося перевірити пошту</b>\n{Escape(error)}",
+                { Result: { } r } when r.MailsRead == 0 => "✅ Нових листів від Djinni немає.",
+                { Result: { } r } => $"✅ Прочитано листів: {r.MailsRead}\n🆕 Нових вакансій: {r.NewVacancies} · 📩 Відповідей: {r.NewEvents}\nКартки — вище.",
+                _ => "✅ Готово."
+            };
+            await progress.CompleteAsync(text, Rows(BackToMenu), jobCt);
+        });
+        return null;
     }
 
     public async Task ShowStatusAsync(ChatContext ctx, CancellationToken ct)
     {
+        var settings = await settingsRepository.GetOrCreateAsync(ctx.ChatId, ct);
         var uptime = DateTimeOffset.UtcNow - BuildInfo.StartedAt;
         var sb = new StringBuilder("ℹ️ <b>Статус</b>\n");
         sb.AppendLine($"Версія: <code>{Escape(BuildInfo.ShortVersion)}</code>");
         sb.AppendLine($"Аптайм: {(int)uptime.TotalDays} д {uptime.Hours} год {uptime.Minutes} хв");
         sb.AppendLine($"Фонових задач: {jobs.RunningCount}");
-        sb.AppendLine($"Режим: {(ctx.IsOwner ? "власник" : "демо")}");
+        sb.AppendLine($"Gmail: {(mailbox.IsConfigured ? "підключено" : "не підключено")} · остання перевірка: {(settings.LastMailSyncAt is { } at ? JobViews.Date(at) : "—")}");
 
-        var all = await sources.GetAllAsync(ct);
-        var enabled = all.Where(s => s.IsEnabled).ToList();
-        if (enabled.Count > 0)
-        {
-            sb.AppendLine().AppendLine($"<b>Джерела</b> ({enabled.Count(s => s.LastError is null)} ок / {enabled.Count(s => s.LastError is not null)} з помилкою):");
-            foreach (var source in enabled)
-            {
-                var last = source.LastFetchedAt is { } at ? NewsView.Date(at) : "ще не збирали";
-                sb.AppendLine(source.LastError is null
-                    ? $"✅ {Escape(source.Name)} · {last}"
-                    : $"❌ {Escape(source.Name)} · {Escape(Truncate(source.LastError, 80))}");
-            }
-        }
-
-        sb.AppendLine();
         if (openAiOptions.Value.IsConfigured)
         {
             var spent = await llm.GetSpentAsync(llm.Today(), ct);
@@ -92,7 +116,7 @@ public sealed class MenuHandler(
         }
 
         sb.Append(errors.Last is { } error
-            ? $"Остання помилка: {NewsView.Date(error.At)} · {Escape(error.Where)} · {Escape(Truncate(error.Message, 120))}"
+            ? $"Остання помилка: {JobViews.Date(error.At)} · {Escape(error.Where)} · {Escape(Truncate(error.Message, 160))}"
             : "Помилок з моменту запуску не було ✅");
         await ui.ShowAsync(ctx, sb.ToString(), Rows(BackToMenu), ct);
     }

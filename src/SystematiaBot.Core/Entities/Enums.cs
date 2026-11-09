@@ -1,37 +1,32 @@
 namespace SystematiaBot.Core.Entities;
 
-public enum SourceKind
-{
-    Telegram,
-    Rss,
-    HtmlList
-}
-
-public enum NewsStatus
+/// <summary>Lifecycle of one vacancy: New → Drafted → Applied → Replied → Interview → Offer, or Rejected / Skipped.</summary>
+public enum VacancyStatus
 {
     New,
-    Picked,
+    Drafted,
+    Applied,
+    Replied,
+    Interview,
+    Offer,
     Rejected,
-    Done
+    Skipped
 }
 
-public enum RejectReason
+public enum MailKind
 {
-    Old,
-    NotLocal,
-    Unverified,
-    Duplicate,
-    Custom
-}
+    /// <summary>"Нові вакансії за вашим профілем".</summary>
+    VacancyAlert,
 
-public enum PostKind
-{
-    Social,
-    Article
-}
+    /// <summary>A recruiter wrote in the Djinni inbox.</summary>
+    RecruiterMessage,
 
-public enum SeoMode
-{
-    Quick,
-    Full
+    /// <summary>A recruiter message that reads as a rejection, or Djinni's "ви не підійшли" notice.</summary>
+    Rejection,
+
+    /// <summary>Automatic "thanks for applying" replies.</summary>
+    AutoReply,
+
+    /// <summary>Weekly stats, newsletters and everything else.</summary>
+    Other
 }

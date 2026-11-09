@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SystematiaBot.Core.Abstractions;
 using SystematiaBot.Core.Entities;
-using SystematiaBot.Infrastructure.Sources;
+using SystematiaBot.Infrastructure.Time;
 
 namespace SystematiaBot.Infrastructure.Llm;
 

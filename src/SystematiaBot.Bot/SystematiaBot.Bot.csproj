@@ -27,6 +27,5 @@
   <ItemGroup>
     <Content Include="..\..\config\**\*" LinkBase="config" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\prompts\**\*" LinkBase="prompts" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\demo\**\*" LinkBase="demo" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -12,8 +12,10 @@ public sealed class BotWorker(ITelegramBotClient bot, IServiceScopeFactory scope
     private static readonly BotCommand[] Commands =
     [
         new() { Command = "start", Description = "Головне меню" },
-        new() { Command = "news", Description = "Новини" },
-        new() { Command = "seo", Description = "SEO-аудит сайту" },
+        new() { Command = "new", Description = "Нові вакансії" },
+        new() { Command = "apps", Description = "Мої заявки" },
+        new() { Command = "sync", Description = "Перевірити пошту зараз" },
+        new() { Command = "profile", Description = "Мій профіль кандидата" },
         new() { Command = "status", Description = "Статус бота" },
         new() { Command = "cancel", Description = "Скасувати поточну задачу" }
     ];

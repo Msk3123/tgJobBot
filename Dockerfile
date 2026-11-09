@@ -1,4 +1,4 @@
-# Systematia Assistant bot: long polling, no inbound ports.
+# Job Hunter bot: long polling, no inbound ports.
 # Runtime state (SQLite, logs, exports) lives in /app/data, /app/logs, /app/exports — mount them as volumes.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
@@ -9,7 +9,6 @@ COPY src/SystematiaBot.Bot/SystematiaBot.Bot.csproj src/SystematiaBot.Bot/
 RUN dotnet restore src/SystematiaBot.Bot/SystematiaBot.Bot.csproj
 COPY config/ config/
 COPY prompts/ prompts/
-COPY demo/ demo/
 COPY src/ src/
 RUN dotnet publish src/SystematiaBot.Bot/SystematiaBot.Bot.csproj -c Release -o /out --no-restore -p:UseAppHost=false
 

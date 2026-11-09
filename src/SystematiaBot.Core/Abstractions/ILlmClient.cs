@@ -29,17 +29,3 @@ public interface IPromptStore
 {
     string Render(string name, IReadOnlyDictionary<string, string> values);
 }
-
-public interface IPostRepository
-{
-    void Add(Post post);
-    void Remove(Post post);
-    Task<Post?> GetAsync(int id, CancellationToken ct);
-    Task<Post?> GetLatestAsync(int newsItemId, PostKind kind, CancellationToken ct);
-    Task<int> GetNextVersionAsync(int newsItemId, PostKind kind, CancellationToken ct);
-
-    /// <summary>Latest version of each post of the city (with its news item and source).</summary>
-    Task<List<Post>> GetLatestByCityAsync(string city, PostKind kind, bool approvedOnly, CancellationToken ct);
-
-    Task SaveChangesAsync(CancellationToken ct);
-}

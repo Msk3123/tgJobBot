@@ -1,5 +1,5 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
-using SystematiaBot.Bot.Demo;
 using SystematiaBot.Bot.Handlers;
 using SystematiaBot.Bot.Hosting;
 using SystematiaBot.Bot.Jobs;
@@ -10,13 +10,13 @@ using Telegram.Bot.Types.Enums;
 
 namespace SystematiaBot.Bot.Routing;
 
-/// <summary>Entry point for every update: access check, commands, awaited text input and callback dispatch.</summary>
-public sealed class UpdateRouter(
+/// <summary>Entry point for every update: owner check, commands, awaited text input, pasted vacancy links and callback dispatch.</summary>
+public sealed partial class UpdateRouter(
     IEnumerable<ICallbackHandler> callbackHandlers,
     IEnumerable<ITextInputHandler> textHandlers,
     MenuHandler menu,
-    SeoHandler seo,
-    DemoHandler demo,
+    VacancyHandler vacancies,
+    ProfileHandler profile,
     UserStateStore state,
     BackgroundJobRunner jobs,
     BotUi ui,
@@ -29,6 +29,13 @@ public sealed class UpdateRouter(
         var ctx = CreateContext(update);
         if (ctx is null)
             return;
+
+        // The bot works with the owner's mailbox, CV and applications: nobody else gets any data or any LLM spend.
+        if (!ctx.IsOwner)
+        {
+            await RejectStrangerAsync(ctx, update, ct);
+            return;
+        }
 
         try
         {
@@ -61,6 +68,22 @@ public sealed class UpdateRouter(
         }
     }
 
+    private async Task RejectStrangerAsync(ChatContext ctx, Update update, CancellationToken ct)
+    {
+        if (update.Type == UpdateType.CallbackQuery)
+        {
+            await ui.AnswerCallbackAsync(update.CallbackQuery!.Id, null, ct);
+            return;
+        }
+
+        if (update.Message?.Text?.StartsWith("/start", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // Logged so the owner can find their id when setting Bot__OwnerId for the first time.
+            logger.LogInformation("/start from non-owner user {UserId} (@{Username})", ctx.UserId, ctx.Username);
+            await ui.SendAsync(ctx.ChatId, "🔒 Це приватний бот.", null, ct);
+        }
+    }
+
     private ChatContext? CreateContext(Update update)
     {
         var (chat, from, messageId) = update.Type switch
@@ -88,19 +111,24 @@ public sealed class UpdateRouter(
         var command = text.StartsWith('/') ? text.Split(' ', '@')[0].ToLowerInvariant() : null;
         switch (command)
         {
-            case "/start":
-                logger.LogInformation("/start from chat {ChatId}, user {UserId} (@{Username}), owner: {IsOwner}", ctx.ChatId, ctx.UserId, ctx.Username, ctx.IsOwner);
+            case "/start" or "/menu":
                 state.Reset(ctx.ChatId);
                 await menu.ShowMainAsync(ctx, ct);
                 return;
-            case "/seo":
-                await DispatchCallbackAsync(ctx, Cb.SeoOpen, ct);
+            case "/sync":
+                await menu.StartSyncAsync(ctx, ct);
+                return;
+            case "/new":
+                await DispatchCallbackAsync(ctx, Cb.VacancyList("new"), ct);
+                return;
+            case "/apps":
+                await DispatchCallbackAsync(ctx, Cb.VacancyList("act"), ct);
+                return;
+            case "/profile":
+                await profile.ShowAsync(ctx, ct);
                 return;
             case "/status":
                 await menu.ShowStatusAsync(ctx, ct);
-                return;
-            case "/news":
-                await DispatchCallbackAsync(ctx, new CallbackData("n", "menu"), ct);
                 return;
             case "/cancel":
                 state.Reset(ctx.ChatId);
@@ -113,12 +141,6 @@ public sealed class UpdateRouter(
         }
 
         var current = state.Get(ctx.ChatId);
-        if (ctx.IsDemo && current.Awaiting != AwaitingInput.None)
-        {
-            await demo.HandleTextAsync(ctx, text, current, ct);
-            return;
-        }
-
         var handler = textHandlers.FirstOrDefault(h => h.Awaiting == current.Awaiting && current.Awaiting != AwaitingInput.None);
         if (handler is not null)
         {
@@ -126,12 +148,9 @@ public sealed class UpdateRouter(
             return;
         }
 
-        if (SeoHandler.TryNormalizeUrl(text, out _) && text.Contains('.') && !text.Contains(' '))
+        if (VacancyLinkRegex().Match(text) is { Success: true } link)
         {
-            if (ctx.IsDemo)
-                await demo.HandleTextAsync(ctx, text, new UserState(AwaitingInput.SeoUrl), ct);
-            else
-                await seo.HandleAsync(ctx, text, null, ct);
+            await vacancies.AddFromUrlAsync(ctx, link.Value, ct);
             return;
         }
 
@@ -162,9 +181,6 @@ public sealed class UpdateRouter(
 
     private async Task<string?> DispatchCallbackAsync(ChatContext ctx, CallbackData data, CancellationToken ct)
     {
-        if (ctx.IsDemo && DemoHandler.Handles(data.Module))
-            return await demo.HandleAsync(ctx, data, ct);
-
         var handler = callbackHandlers.FirstOrDefault(h => h.Module == data.Module);
         if (handler is null)
         {
@@ -174,4 +190,7 @@ public sealed class UpdateRouter(
 
         return await handler.HandleAsync(ctx, data, ct);
     }
+
+    [GeneratedRegex(@"https?://(?:www\.)?djinni\.co/jobs/\d+-[^\s/?#]+/?\S*", RegexOptions.IgnoreCase)]
+    private static partial Regex VacancyLinkRegex();
 }

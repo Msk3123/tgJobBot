@@ -10,6 +10,4 @@ public sealed class ChatContext
 
     /// <summary>Message to edit in place (set for callback queries).</summary>
     public int? MessageId { get; set; }
-
-    public bool IsDemo => !IsOwner;
 }

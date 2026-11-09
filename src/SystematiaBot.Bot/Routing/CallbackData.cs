@@ -55,11 +55,23 @@ public static class Cb
 {
     public static CallbackData MainMenu => new("m", "main");
     public static CallbackData Status => new("m", "status");
+    public static CallbackData Sync => new("m", "sync");
+    public static CallbackData DigestToggle => new("m", "digest");
     public static CallbackData CancelJob => new("j", "cancel");
-    public static CallbackData Noop => new("m", "noop");
 
-    public static CallbackData SeoOpen => new("s", "open");
-    public static CallbackData SeoMode(bool full) => new("s", "mode", null, full ? "f" : "q");
+    /// <summary>Vacancy lists: "new" (to review), "act" (in progress), "arc" (rejected / skipped).</summary>
+    public static CallbackData VacancyList(string list, int page = 0) => new("v", "list", page, list);
+    public static CallbackData Vacancy(int id) => new("v", "show", id);
+    public static CallbackData Draft(int id) => new("v", "draft", id);
+    public static CallbackData Redraft(int id) => new("v", "redraft", id);
+    public static CallbackData Rescore(int id) => new("v", "score", id);
+    public static CallbackData SetStatus(int id, string status) => new("v", "st", id, status);
 
-    public static CallbackData DigestToggle => new("d", "toggle");
+    public static CallbackData Conversations(int page = 0) => new("c", "list", page);
+    public static CallbackData Conversation(int id) => new("c", "show", id);
+    public static CallbackData ReplyDraft(int id) => new("c", "reply", id);
+    public static CallbackData Rereply(int id) => new("c", "rereply", id);
+
+    public static CallbackData Profile => new("p", "show");
+    public static CallbackData ProfileEdit => new("p", "edit");
 }

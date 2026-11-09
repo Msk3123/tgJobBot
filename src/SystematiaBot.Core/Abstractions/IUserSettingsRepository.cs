@@ -4,7 +4,6 @@ namespace SystematiaBot.Core.Abstractions;
 
 public interface IUserSettingsRepository
 {
-    Task<UserSettings> GetOrCreateAsync(long chatId, string defaultCity, CancellationToken ct);
-    Task<IReadOnlyList<UserSettings>> GetDigestSubscribersAsync(CancellationToken ct);
+    Task<UserSettings> GetOrCreateAsync(long chatId, CancellationToken ct);
     Task SaveAsync(UserSettings settings, CancellationToken ct);
 }

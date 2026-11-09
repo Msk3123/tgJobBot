@@ -3,17 +3,14 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using SystematiaBot.Bot;
-using SystematiaBot.Bot.Demo;
 using SystematiaBot.Bot.Handlers;
 using SystematiaBot.Bot.Hosting;
 using SystematiaBot.Bot.Jobs;
 using SystematiaBot.Bot.Routing;
 using SystematiaBot.Bot.State;
 using SystematiaBot.Bot.UI;
-using SystematiaBot.Core.News;
 using SystematiaBot.Infrastructure;
 using SystematiaBot.Infrastructure.Persistence;
-using SystematiaBot.Infrastructure.Sources;
 using Telegram.Bot;
 
 Console.OutputEncoding = Encoding.UTF8;
@@ -56,49 +53,41 @@ try
 
     builder.Services
         .AddCoreServices()
-        .AddPersistence(Path.Combine(paths.Data, "bot.db"))
-        .AddSeo(builder.Configuration)
-        .AddNews(builder.Configuration)
+        .AddPersistence(Path.Combine(paths.Data, "jobhunter.db"))
+        .AddJobSearch(builder.Configuration)
         .AddLlm(builder.Configuration, paths.Prompts);
-    builder.Services.AddSingleton<ICityCatalog>(new JsonCityCatalog(Path.Combine(paths.Config, "sources.json")));
 
     builder.Services.AddSingleton<BotUi>();
-    builder.Services.AddSingleton<DemoDataProvider>();
-    builder.Services.AddSingleton<DemoHandler>();
     builder.Services.AddSingleton<UserStateStore>();
     builder.Services.AddSingleton<ErrorTracker>();
     builder.Services.AddSingleton<BackgroundJobRunner>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<BackgroundJobRunner>());
+    builder.Services.AddSingleton<JobNotifier>();
+    builder.Services.AddSingleton<SyncCoordinator>();
 
     builder.Services.AddScoped<UpdateRouter>();
     builder.Services.AddScoped<MenuHandler>();
-    builder.Services.AddScoped<SeoHandler>();
+    builder.Services.AddScoped<VacancyHandler>();
+    builder.Services.AddScoped<ProfileHandler>();
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<MenuHandler>());
-    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<SeoHandler>());
-    builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<SeoHandler>());
-    builder.Services.AddScoped<NewsHandler>();
-    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<NewsHandler>());
-    builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<NewsHandler>());
-    builder.Services.AddScoped<PostsHandler>();
-    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<PostsHandler>());
-    builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<PostsHandler>());
-    builder.Services.AddScoped<ICallbackHandler, ArticleHandler>();
-    builder.Services.AddScoped<ICallbackHandler, ExportHandler>();
-    builder.Services.AddScoped<ICallbackHandler, DigestHandler>();
+    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<VacancyHandler>());
+    builder.Services.AddScoped<ICallbackHandler, ConversationHandler>();
+    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<ProfileHandler>());
+    builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<ProfileHandler>());
 
     builder.Services.AddHostedService<BotWorker>();
-    builder.Services.AddHostedService<DigestScheduler>();
+    builder.Services.AddHostedService<MailPoller>();
 
     var host = builder.Build();
 
     var botOptions = builder.Configuration.GetSection(BotOptions.Section).Get<BotOptions>() ?? new BotOptions();
     if (botOptions.OwnerId == 0)
-        Log.Warning("Bot:OwnerId is not set: everyone gets demo mode. Send /start and look for the user id in the log");
+        Log.Warning("Bot:OwnerId is not set: the bot answers nobody. Send /start and look for your user id in the log");
 
     await using (var scope = host.Services.CreateAsyncScope())
         await scope.ServiceProvider.GetRequiredService<BotDbContext>().Database.MigrateAsync();
 
-    Log.Information("Systematia Assistant starting, version {Version}", BuildInfo.Version);
+    Log.Information("Job Hunter starting, version {Version}", BuildInfo.Version);
     await host.RunAsync();
 }
 catch (Exception ex) when (ex is not HostAbortedException)
