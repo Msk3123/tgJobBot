@@ -3,10 +3,10 @@ using SystematiaBot.Core.Abstractions;
 
 namespace SystematiaBot.Core.Jobs;
 
-/// <param name="Error">The last feed failure in this run, e.g. "dou: 403"; null when every feed answered.</param>
+/// <param name="Error">The last feed failure in this run, e.g. "dou: …403…"; null when every feed answered.</param>
 public sealed record FeedSyncResult(int Created, string? Error);
 
-/// <summary>Pulls RSS-style boards (DOU) through the same intake as e-mail alerts.</summary>
+/// <summary>Pulls RSS feeds (Djinni, DOU) through the same intake as e-mail alerts.</summary>
 public sealed class FeedSyncService(IEnumerable<IVacancyFeed> feeds, VacancyIntake intake, ILogger<FeedSyncService> logger)
 {
     public bool HasFeeds => feeds.Any();

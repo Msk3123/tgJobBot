@@ -3,7 +3,7 @@ using SystematiaBot.Core.Jobs;
 
 namespace SystematiaBot.Bot.Jobs;
 
-/// <param name="FeedVacancies">New vacancies from RSS boards; null when no feed was checked in this run.</param>
+/// <param name="FeedVacancies">New vacancies from RSS feeds (Djinni, DOU); null when no feed was checked in this run.</param>
 /// <param name="MailNotConfigured">Gmail is not connected yet; feeds still ran.</param>
 public sealed record SyncOutcome(SyncResult? Mail, int? FeedVacancies, int CardsSent, string? Error, bool Skipped, bool MailNotConfigured);
 
@@ -52,7 +52,7 @@ public sealed class SyncCoordinator(IServiceScopeFactory scopeFactory, JobNotifi
                 var feedResult = await feedSync.SyncAsync(settings.Profile, ct);
                 feedVacancies = feedResult.Created;
                 if (feedResult.Error is { } feedError)
-                    errors.Record("DOU", new InvalidOperationException(feedError));
+                    errors.Record("RSS", new InvalidOperationException(feedError));
                 else
                     settings.LastFeedSyncAt = clock.UtcNow;
             }

@@ -14,7 +14,7 @@ public sealed class BotWorker(ITelegramBotClient bot, IServiceScopeFactory scope
         new() { Command = "start", Description = "Головне меню" },
         new() { Command = "new", Description = "Нові вакансії" },
         new() { Command = "apps", Description = "Мої заявки" },
-        new() { Command = "sync", Description = "Перевірити пошту і DOU зараз" },
+        new() { Command = "sync", Description = "Перевірити пошту і вакансії зараз" },
         new() { Command = "profile", Description = "Мій профіль кандидата" },
         new() { Command = "cv", Description = "Моє CV: PDF, оновлення" },
         new() { Command = "status", Description = "Статус бота" },

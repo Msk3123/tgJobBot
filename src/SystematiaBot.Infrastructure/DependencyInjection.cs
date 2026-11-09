@@ -43,6 +43,9 @@ public static class DependencyInjection
         services.AddSingleton<IVacancyPageFetcher, DjinniPageFetcher>();
 
         var jobs = configuration.GetSection(JobOptions.Section).Get<JobOptions>() ?? new JobOptions();
+        if (jobs.DjinniFeeds.Count > 0)
+            services.AddSingleton<IVacancyFeed, DjinniRssFeed>();
+
         if (jobs.DouEnabled && jobs.DouFeeds.Count > 0)
         {
             services.AddHttpClient(DouRssFeed.HttpClientName, c =>

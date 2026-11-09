@@ -69,7 +69,7 @@ public sealed class MenuHandler(
             ? $"📬 Пошта: {(settings.LastMailSyncAt is { } at ? "перевірено " + JobViews.Date(at) : "ще не перевіряли")}"
             : "⚠️ Gmail не підключено — бот не бачить листів Djinni і LinkedIn");
         if (feeds.HasFeeds)
-            sb.AppendLine($"🌐 DOU: {(settings.LastFeedSyncAt is { } feedAt ? "перевірено " + JobViews.Date(feedAt) : "ще не перевіряли")}");
+            sb.AppendLine($"🌐 RSS вакансій: {(settings.LastFeedSyncAt is { } feedAt ? "перевірено " + JobViews.Date(feedAt) : "ще не перевіряли")}");
         sb.AppendLine(string.IsNullOrWhiteSpace(settings.Profile)
             ? "⚠️ Профіль порожній — вакансії не оцінюються. Натисни «👤 Профіль»."
             : $"👤 Профіль: {Plural(settings.Profile.Length, "символ", "символи", "символів")}");
@@ -83,7 +83,7 @@ public sealed class MenuHandler(
         if (jobs.IsRunning(ctx.ChatId, "sync"))
             return "Вже перевіряю…";
 
-        var progress = await ui.StartProgressAsync(ctx, "⏳ Перевіряю пошту і DOU…", ct);
+        var progress = await ui.StartProgressAsync(ctx, "⏳ Перевіряю пошту і стрічки вакансій…", ct);
         jobs.TryStart(ctx.ChatId, "sync", async jobCt =>
         {
             var outcome = await coordinator.RunAsync(ctx.ChatId, mail: true, feeds: true, jobCt);
@@ -108,7 +108,7 @@ public sealed class MenuHandler(
                 : $"📬 Листів: {mail.MailsRead} · 🆕 вакансій: {mail.NewVacancies} · 📩 відповідей: {mail.NewEvents}");
 
         if (outcome.FeedVacancies is { } fromFeeds)
-            sb.AppendLine($"🌐 DOU: нових вакансій {fromFeeds}");
+            sb.AppendLine($"🌐 RSS: нових вакансій {fromFeeds}");
 
         sb.Append(outcome.CardsSent > 0
             ? $"\n✅ Карток надіслано: {outcome.CardsSent} — вони вище."
@@ -126,8 +126,8 @@ public sealed class MenuHandler(
         sb.AppendLine($"Фонових задач: {jobs.RunningCount}");
         sb.AppendLine($"Gmail: {(mailbox.IsConfigured ? "підключено" : "не підключено")} · остання перевірка: {(settings.LastMailSyncAt is { } at ? JobViews.Date(at) : "—")}");
         sb.AppendLine(feeds.HasFeeds
-            ? $"DOU RSS: остання перевірка {(settings.LastFeedSyncAt is { } feedAt ? JobViews.Date(feedAt) : "—")}"
-            : "DOU RSS: вимкнено (Jobs:DouEnabled=false або порожній Jobs:DouFeeds)");
+            ? $"RSS (Djinni, DOU): остання вдала перевірка {(settings.LastFeedSyncAt is { } feedAt ? JobViews.Date(feedAt) : "—")}"
+            : "RSS: вимкнено (порожні Jobs:DjinniFeeds і Jobs:DouFeeds)");
         sb.AppendLine($"CV: {(string.IsNullOrWhiteSpace(settings.CvJson) ? "не завантажено (/cv)" : "є")}");
 
         if (openAiOptions.Value.IsConfigured)

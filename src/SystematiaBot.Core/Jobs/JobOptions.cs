@@ -16,6 +16,9 @@ public sealed class JobOptions
     public int MinFitToNotify { get; set; } = 40;
 
     /// <summary>RSS feeds of boards that publish vacancies without e-mail (DOU).</summary>
+    /// <summary>Djinni's public RSS with search filters; works without Gmail.</summary>
+    public List<string> DjinniFeeds { get; set; } = [];
+
     public List<string> DouFeeds { get; set; } = [];
 
     /// <summary>
