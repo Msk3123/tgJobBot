@@ -76,6 +76,14 @@ flowchart LR
 
 ### 2. Refresh token (на своєму ПК)
 
+Якщо бот уже на сервері, все робить один скрипт: запускає авторизацію, записує три змінні в `.env` на сервері через SSH і перезапускає бота. Секрети не з'являються ні в консолі, ні в історії команд.
+
+```powershell
+./scripts/connect-gmail.ps1 -SshHost <ssh-alias> -ComposeDir /opt/jobhunter -Service jobhunter
+```
+
+Вручну:
+
 ```powershell
 dotnet run --project src/SystematiaBot.Cli -- gmail-auth --client-id "<id>" --client-secret "<secret>"
 ```
