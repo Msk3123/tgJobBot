@@ -6,19 +6,28 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using SystematiaBot.Core.Jobs;
+using SystematiaBot.Infrastructure.Cv;
 using SystematiaBot.Infrastructure.Gmail;
 
-// One-time Gmail authorization for the bot.
+// gmail-auth: one-time Gmail authorization for the bot.
 //   dotnet run --project src/SystematiaBot.Cli -- gmail-auth --client-id <id> --client-secret <secret>
 // Opens Google's consent page, receives the code on a loopback port and prints the refresh token
 // that goes into the server's Gmail__RefreshToken. Nothing is written to disk.
+//
+// cv-pdf: renders a CV JSON exactly as the bot will, to check the layout before uploading it.
+//   dotnet run --project src/SystematiaBot.Cli -- cv-pdf <cv.json> [out.pdf]
 
 Console.OutputEncoding = Encoding.UTF8;
+
+if (args is ["cv-pdf", ..])
+    return RenderCv(args[1..]);
 
 if (args.Length == 0 || args[0] != "gmail-auth")
 {
     Console.WriteLine("Usage: SystematiaBot.Cli gmail-auth --client-id <id> --client-secret <secret>");
     Console.WriteLine("       (or set Gmail:ClientId / Gmail:ClientSecret via user-secrets or env Gmail__ClientId / Gmail__ClientSecret)");
+    Console.WriteLine("       SystematiaBot.Cli cv-pdf <cv.json> [out.pdf]");
     return 1;
 }
 
@@ -143,4 +152,24 @@ static async Task<string?> GetEmailAsync(HttpClient http, string accessToken)
         return null;
     using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     return doc.RootElement.TryGetProperty("emailAddress", out var e) ? e.GetString() : null;
+}
+
+static int RenderCv(string[] args)
+{
+    if (args.Length == 0 || !File.Exists(args[0]))
+    {
+        Console.Error.WriteLine("Usage: SystematiaBot.Cli cv-pdf <cv.json> [out.pdf]");
+        return 1;
+    }
+
+    if (CvData.TryParse(File.ReadAllText(args[0]).TrimStart('\uFEFF'), out var error) is not { } cv)
+    {
+        Console.Error.WriteLine($"CV не читається: {error}");
+        return 1;
+    }
+
+    var output = args.Length > 1 ? args[1] : Path.ChangeExtension(args[0], ".pdf");
+    File.WriteAllBytes(output, new QuestPdfCvRenderer().Render(cv));
+    Console.WriteLine($"{output}: {cv.Projects.Count} проєкти, {cv.Projects.Sum(p => p.Bullets.Count)} пунктів");
+    return 0;
 }

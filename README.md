@@ -100,6 +100,8 @@ docker compose logs -f
 
 `/cv` → «🧩 Шаблон JSON» → заповни своїми даними → надішли файл `.json` боту. Він збереже CV в базі (не в git) і одразу пришле базовий PDF. Далі в кожній картці вакансії є «📄 CV під вакансію».
 
+Перевірити вигляд локально, до завантаження: `dotnet run --project src/SystematiaBot.Cli -- cv-pdf cv.json` (поруч з'явиться `cv.pdf`).
+
 ### 6. LinkedIn (за бажанням)
 
 LinkedIn → Jobs → пошук «.NET Developer» (або «C# Developer»), локація Львів або Україна, фільтри Entry level / Internship → **Set alert**, частота Daily, сповіщення на e-mail. Листи прийдуть у той самий Gmail, і бот їх підхопить.
