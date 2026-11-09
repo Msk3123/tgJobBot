@@ -27,7 +27,7 @@ public sealed class MailSyncService(
         var ids = await mailbox.SearchAsync(options.Value.MailQuery, options.Value.MaxMailsPerSync, ct);
         var read = 0;
         var newEvents = 0;
-        var toIngest = new List<VacancyCandidate>();
+        var created = 0;
 
         // Oldest first, so an alert is processed before a later reply about the same vacancy.
         foreach (var id in ids.Reverse())
@@ -54,12 +54,16 @@ public sealed class MailSyncService(
                 Notified = parsed.Kind is MailKind.VacancyAlert or MailKind.Other
             };
 
-            foreach (var item in parsed.Vacancies)
+            // The mail is marked as processed only after its vacancies are in: a restart halfway through
+            // (deploys, OOM) used to leave an alert "done" with half of its vacancies never ingested.
+            foreach (var item in parsed.Vacancies.DistinctBy(v => v.ExternalId))
             {
                 if (parsed.Kind == MailKind.VacancyAlert)
                 {
                     // E-mails carry no publication date; for alerts the delivery time is a close proxy.
-                    toIngest.Add(VacancyCandidate.From(item) with { PostedAt = message.ReceivedAt });
+                    var candidate = VacancyCandidate.From(item) with { PostedAt = message.ReceivedAt };
+                    if ((await intake.IngestAsync(candidate, profile, applyPrefilter: true, ct)).Created)
+                        created++;
                     continue;
                 }
 
@@ -73,13 +77,6 @@ public sealed class MailSyncService(
 
             mails.Add(mailEvent);
             await mails.SaveChangesAsync(ct);
-        }
-
-        var created = 0;
-        foreach (var candidate in toIngest.DistinctBy(c => (c.Source, c.ExternalId)))
-        {
-            if ((await intake.IngestAsync(candidate, profile, applyPrefilter: true, ct)).Created)
-                created++;
         }
 
         logger.LogInformation("Mail sync: {Read} new e-mails, {Vacancies} new vacancies, {Events} conversation events", read, created, newEvents);

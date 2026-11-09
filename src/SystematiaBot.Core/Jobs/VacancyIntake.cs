@@ -25,7 +25,12 @@ public sealed class VacancyIntake(
     {
         var existing = await vacancies.FindAsync(candidate.Source, candidate.ExternalId, ct);
         if (existing is not null)
+        {
+            // Saved but never scored (the process stopped between the two): finish the job now.
+            if (existing is { Status: VacancyStatus.New, FitScore: null, FilterReason: null, IsInactive: false, Notified: false })
+                await EnrichAndScoreAsync(existing, profile, applyPrefilter, ct);
             return new IntakeResult(existing, false, false);
+        }
 
         var key = VacancyDedup.Key(candidate.Company, candidate.Title);
         if (key is not null && await vacancies.FindByDedupKeyAsync(key, clock.UtcNow - DedupWindow, ct) is { } twin && twin.Source != candidate.Source)
