@@ -29,6 +29,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8   # the CLI prints Ukrainian text
+. (Join-Path $PSScriptRoot "ServerEnv.ps1")
 $repo = Split-Path $PSScriptRoot -Parent
 $cli = Join-Path $repo "src/SystematiaBot.Cli"
 
@@ -55,25 +56,10 @@ if (-not $script:token) { throw "Refresh token не отримано, дивис
 
 $names = if ($ComposeVariables) { "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN" }
          else { "Gmail__ClientId", "Gmail__ClientSecret", "Gmail__RefreshToken" }
-$values = $clientId, $clientSecret, $script:token
-
-$lines = @(
-    "set -e",
-    "cd '$ComposeDir'",
-    "touch .env && cp -a .env "".env.bak-`$(date +%Y%m%d_%H%M%S)""",
-    "set_var() { tmp=`$(mktemp); grep -v ""^`$1="" .env > ""`$tmp"" || true; printf '%s=%s\n' ""`$1"" ""`$(printf %s ""`$2"" | base64 -d)"" >> ""`$tmp""; cat ""`$tmp"" > .env; rm -f ""`$tmp""; }"
-)
-for ($i = 0; $i -lt 3; $i++) {
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($values[$i]))
-    $lines += "set_var $($names[$i]) $encoded"
-}
-$lines += "docker compose up -d $Service"
-$lines += "echo GMAIL-CONNECTED"
-$lines += "exit 0"
-
-Write-Host "`nЗаписую в $SshHost`:$ComposeDir/.env і перезапускаю $Service…"
-$result = (($lines -join "`n") + "`n") | ssh $SshHost "bash -s" 2>&1
-$result | ForEach-Object { Write-Host $_ }
-if (-not ($result -match "GMAIL-CONNECTED")) { throw "На сервері щось пішло не так, дивись вивід вище." }
+Set-ServerEnv -SshHost $SshHost -ComposeDir $ComposeDir -Service $Service -Values ([ordered]@{
+    $names[0] = $clientId
+    $names[1] = $clientSecret
+    $names[2] = $script:token
+})
 
 Write-Host "`n✅ Gmail підключено. Перевір у боті: /status"

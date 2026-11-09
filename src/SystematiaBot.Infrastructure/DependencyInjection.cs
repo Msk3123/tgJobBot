@@ -42,6 +42,23 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All, UseCookies = false });
         services.AddSingleton<IVacancyPageFetcher, DjinniPageFetcher>();
 
+        // Applying with the owner's Djinni session: no automatic redirects (a redirect to /login means the session expired)
+        // and no cookie container (the session cookie is set per request from configuration).
+        services.Configure<DjinniOptions>(configuration.GetSection(DjinniOptions.Section));
+        services.AddHttpClient(DjinniApplicant.HttpClientName, c =>
+            {
+                c.Timeout = TimeSpan.FromSeconds(30);
+                c.DefaultRequestHeaders.UserAgent.ParseAdd(DjinniPageFetcher.UserAgent);
+                c.DefaultRequestHeaders.AcceptLanguage.ParseAdd("uk-UA,uk;q=0.9,en;q=0.8");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.All,
+                UseCookies = false,
+                AllowAutoRedirect = false
+            });
+        services.AddSingleton<IJobApplicant, DjinniApplicant>();
+
         var jobs = configuration.GetSection(JobOptions.Section).Get<JobOptions>() ?? new JobOptions();
         if (jobs.DjinniFeeds.Count > 0)
             services.AddSingleton<IVacancyFeed, DjinniRssFeed>();

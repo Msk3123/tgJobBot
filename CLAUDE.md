@@ -2,7 +2,8 @@
 
 Personal Telegram assistant for a job search: Djinni and LinkedIn e-mails through the Gmail API, DOU through RSS.
 Rule prefilter, cheap-model scoring, fit × freshness priority, application drafts, CV tailored per vacancy (PDF),
-follow-up reminders. It never sends anything itself.
+follow-up reminders. It sends nothing on its own: a Djinni application goes out only on the owner's explicit
+«📨 Подати» tap on a draft they have seen (one tap = one vacancy, never in bulk or on a schedule).
 
 ## Rules
 - .NET 10, nullable enabled, async/await with `CancellationToken`, no `.Result` / `.Wait()`, no God classes.
@@ -13,6 +14,7 @@ follow-up reminders. It never sends anything itself.
 - Third-party text (vacancies, recruiter messages) goes to the LLM in the user turn inside tags, never into the system prompt.
 - Drafts are checked by `SkillGrounding`: the model may not claim technologies the profile does not have.
 - CV tailoring returns ids only (projects, bullets, skill groups); bullet text always comes from the owner's CV JSON.
+- The Djinni session (`Djinni:SessionId`) is a credential: env / user-secrets only, never logged. Apply only after an explicit tap.
 - LinkedIn: only canonical `/jobs/view/{id}/` links are stored (tracking links carry personal tokens); job pages are never fetched.
 - Secrets only via `dotnet user-secrets` (project `src/SystematiaBot.Bot`) or env vars / `.env`. Never in code, logs or commits.
 - Code, comments, commits: English. Bot UI and README: Ukrainian.

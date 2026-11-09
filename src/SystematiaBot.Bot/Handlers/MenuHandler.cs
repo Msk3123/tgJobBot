@@ -23,6 +23,7 @@ public sealed class MenuHandler(
     IVacancyRepository vacancies,
     IMailbox mailbox,
     FeedSyncService feeds,
+    IEnumerable<IJobApplicant> applicants,
     ILlmUsageRepository usage,
     LlmBudgetGuard llm,
     IOptions<OpenAiOptions> openAiOptions,
@@ -129,6 +130,17 @@ public sealed class MenuHandler(
             ? $"RSS (Djinni, DOU): остання вдала перевірка {(settings.LastFeedSyncAt is { } feedAt ? JobViews.Date(feedAt) : "—")}"
             : "RSS: вимкнено (порожні Jobs:DjinniFeeds і Jobs:DouFeeds)");
         sb.AppendLine($"CV: {(string.IsNullOrWhiteSpace(settings.CvJson) ? "не завантажено (/cv)" : "є")}");
+        foreach (var applicant in applicants)
+        {
+            var session = await applicant.CheckSessionAsync(ct);
+            sb.AppendLine($"Автоподача {JobViews.SourceLabel(applicant.Source)}: " + (applicant.IsConfigured, session) switch
+            {
+                (false, _) => "не підключена (scripts/connect-djinni.ps1)",
+                (true, true) => "✅ сесія працює",
+                (true, false) => "❌ сесія закінчилась — онови scripts/connect-djinni.ps1",
+                _ => "сесія є, але Djinni зараз не відповідає"
+            });
+        }
 
         if (openAiOptions.Value.IsConfigured)
         {

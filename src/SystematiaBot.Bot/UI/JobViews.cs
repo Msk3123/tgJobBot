@@ -1,5 +1,6 @@
 using System.Text;
 using SystematiaBot.Bot.Routing;
+using SystematiaBot.Core.Abstractions;
 using SystematiaBot.Core.Entities;
 using SystematiaBot.Core.Jobs;
 using SystematiaBot.Infrastructure.Time;
@@ -128,6 +129,9 @@ public static class JobViews
             case VacancyStatus.New:
                 rows.Add([Btn("✍️ Написати відгук", Cb.Draft(v.Id)), Btn("⏭ Пропустити", Cb.SetStatus(v.Id, "sk"))]);
                 break;
+            case VacancyStatus.Drafted when CanAutoApply(v):
+                rows.Add([Btn("📨 Подати на Djinni", Cb.Apply(v.Id)), Btn("📄 Чернетка", Cb.Draft(v.Id))]);
+                break;
             case VacancyStatus.Drafted:
                 rows.Add([Btn("📄 Чернетка", Cb.Draft(v.Id)), Btn("✅ Я подався", Cb.SetStatus(v.Id, "ap"))]);
                 break;
@@ -166,14 +170,60 @@ public static class JobViews
         if (warnings.Count > 0)
             sb.AppendLine().AppendLine($"⚠️ У тексті є навички, яких немає в профілі: <b>{Escape(string.Join(", ", warnings))}</b>. Прибери або перевір перед відправкою.");
 
-        sb.AppendLine().Append("Як подати: торкнись тексту, щоб скопіювати → «🔗 Відкрити вакансію» → «Відгукнутися» → встав → надішли. Потім натисни «✅ Я подався».");
+        sb.AppendLine().Append(CanAutoApply(v)
+            ? "📨 «Подати на Djinni» — бот сам надішле цей текст і CV під цю вакансію від твого імені. Перечитай текст перед тим, як тиснути."
+            : "Як подати: торкнись тексту, щоб скопіювати → «🔗 Відкрити вакансію» → «Відгукнутися» → встав → надішли. Потім натисни «✅ Я подався».");
         return sb.ToString();
     }
 
-    public static InlineKeyboardMarkup DraftKeyboard(Vacancy v) => Rows(
-        [Url("🔗 Відкрити вакансію", v.Url)],
-        [Btn("✅ Я подався", Cb.SetStatus(v.Id, "ap")), Btn("🔄 Інший варіант", Cb.Redraft(v.Id))],
-        [Btn("⬅️ До вакансії", Cb.Vacancy(v.Id))]);
+    public static InlineKeyboardMarkup DraftKeyboard(Vacancy v)
+    {
+        var rows = new List<InlineKeyboardButton[]>();
+        if (CanAutoApply(v) && v.Status is VacancyStatus.New or VacancyStatus.Drafted)
+            rows.Add([Btn("📨 Подати на Djinni", Cb.Apply(v.Id))]);
+        rows.Add([Url("🔗 Відкрити вакансію", v.Url)]);
+        rows.Add([Btn("✅ Я подався", Cb.SetStatus(v.Id, "ap")), Btn("🔄 Інший варіант", Cb.Redraft(v.Id))]);
+        rows.Add([Btn("⬅️ До вакансії", Cb.Vacancy(v.Id))]);
+        return Rows(rows);
+    }
+
+    /// <summary>Djinni vacancies can be submitted by the bot; other boards are applied to by hand.</summary>
+    public static bool CanAutoApply(Vacancy v) => v.Source == DjinniMailParser.Source && !v.IsInactive;
+
+    public const string ConnectDjinniHint =
+        "🔑 <b>Бот ще не може подаватись на Djinni за тебе</b>\n\n" +
+        "Йому потрібен твій вхід у Djinni — cookie <code>sessionid</code>. Один раз:\n" +
+        "1. Увійди на djinni.co у звичайному Chrome.\n" +
+        "2. F12 → Application → Cookies → https://djinni.co → скопіюй значення <code>sessionid</code>.\n" +
+        "3. На ПК: <code>./scripts/connect-djinni.ps1</code> і встав його.\n\n" +
+        "Не натискай «Вийти» в тому браузері: це вимкне і сесію бота. Поки що можна податись вручну.";
+
+    public static string ApplyResultView(Vacancy v, ApplyResult result, bool cvAttached)
+    {
+        var company = string.IsNullOrWhiteSpace(v.Company) ? "" : $" · {Escape(v.Company)}";
+        return result.Outcome switch
+        {
+            ApplyOutcome.Applied => $"✅ <b>Відгук надіслано</b>: {Escape(v.Title)}{company}\n" +
+                                    (cvAttached ? "📎 Разом з CV під цю вакансію (копія нижче).\n" : "📎 З CV з твого профілю на Djinni.\n") +
+                                    $"Статус: {StatusLabel(VacancyStatus.Applied)}. Якщо за кілька днів тиша, нагадаю про follow-up.",
+            ApplyOutcome.AlreadyApplied => $"ℹ️ Ти вже відгукувався на «{Escape(v.Title)}»{company}. Позначив як подано.",
+            ApplyOutcome.NotAvailable => $"🚫 Подати не вийшло: {Escape(result.Detail ?? "вакансія неактивна")}.",
+            ApplyOutcome.SessionExpired => "🔑 <b>Сесія Djinni закінчилась</b>, відгук не надіслано.\n\nОнови її: <code>./scripts/connect-djinni.ps1</code>. Поки що можна вручну: текст — у «📄 Чернетка».",
+            ApplyOutcome.Rejected => $"⚠️ <b>Djinni не прийняв відгук</b>: {Escape(result.Detail ?? "помилка у формі")}\n\nСпробуй вручну: «🔗 Відкрити вакансію».",
+            _ => $"⚠️ <b>Не вдалося подати</b>: {Escape(result.Detail ?? "невідома помилка")}\n\nНічого не надіслано повторно. Перевір чати на Djinni або подайся вручну."
+        };
+    }
+
+    public static InlineKeyboardMarkup ApplyResultKeyboard(Vacancy v, ApplyResult result)
+    {
+        var rows = new List<InlineKeyboardButton[]>();
+        if (result.InboxUrl is { } inbox)
+            rows.Add([Url("💬 Чат на Djinni", inbox)]);
+        if (result.Outcome is not (ApplyOutcome.Applied or ApplyOutcome.AlreadyApplied))
+            rows.Add([Url("🔗 Відкрити вакансію", v.Url), Btn("📄 Чернетка", Cb.Draft(v.Id))]);
+        rows.Add([Btn("⬅️ До вакансії", Cb.Vacancy(v.Id))]);
+        return Rows(rows);
+    }
 
     public static string ListItem(Vacancy v)
     {

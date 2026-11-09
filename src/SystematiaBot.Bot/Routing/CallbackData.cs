@@ -67,6 +67,7 @@ public static class Cb
     public static CallbackData Rescore(int id) => new("v", "score", id);
     public static CallbackData SetStatus(int id, string status) => new("v", "st", id, status);
     public static CallbackData Cv(int id) => new("v", "cv", id);
+    public static CallbackData Apply(int id) => new("v", "apply", id);
     public static CallbackData FollowUp(int id) => new("v", "fu", id);
     public static CallbackData FollowUpAgain(int id) => new("v", "fu2", id);
     public static CallbackData FollowUpDone(int id) => new("v", "fud", id);

@@ -17,6 +17,7 @@ public sealed class VacancyHandler(
     IVacancyRepository vacancies,
     IMailEventRepository mailEvents,
     IUserSettingsRepository settingsRepository,
+    IEnumerable<IJobApplicant> applicants,
     IClock clock) : ICallbackHandler
 {
     private const int PageSize = 8;
@@ -51,6 +52,8 @@ public sealed class VacancyHandler(
                 return await StartRescoreAsync(ctx, vacancy.Id, ct);
             case "cv":
                 return await StartCvAsync(ctx, vacancy, ct);
+            case "apply":
+                return await StartApplyAsync(ctx, vacancy, ct);
             case "fu" when vacancy.FollowUpDraft is not null:
                 await ui.ShowAsync(ctx, JobViews.FollowUpView(vacancy), JobViews.FollowUpDraftKeyboard(vacancy, await mailEvents.GetInboxUrlAsync(vacancy.Id, ct)), ct);
                 return null;
@@ -230,6 +233,82 @@ public sealed class VacancyHandler(
             await ui.SendDocumentAsync(ctx.ChatId, pdf, CvHandler.FileName(baseCv.Name, current.Company), caption.ToString(),
                 Rows([Btn("🔄 Інший варіант", Cb.Cv(vacancyId)), Btn("⬅️ До вакансії", Cb.Vacancy(vacancyId))]), jobCt);
             await progress.CompleteAsync("✅ CV готове — файл нижче. Перевір перед відправкою.", null, jobCt);
+        });
+        return null;
+    }
+
+    /// <summary>
+    /// One explicit tap on a draft the owner has seen = one application. The CV attached is tailored to the vacancy
+    /// (same id-only selection as «📄 CV під вакансію»), and the owner gets a copy of exactly what was sent.
+    /// </summary>
+    private async Task<string?> StartApplyAsync(ChatContext ctx, Vacancy vacancy, CancellationToken ct)
+    {
+        if (applicants.FirstOrDefault(a => a.Source == vacancy.Source) is not { } applicant || !JobViews.CanAutoApply(vacancy))
+            return "Автоподача працює тільки для активних вакансій Djinni";
+        if (vacancy.Status is not (VacancyStatus.New or VacancyStatus.Drafted))
+            return "На цю вакансію ти вже подався";
+        if (string.IsNullOrWhiteSpace(vacancy.Draft))
+            return "Спершу напиши відгук: ✍️";
+        if (!applicant.IsConfigured)
+        {
+            await ui.SendAsync(ctx, JobViews.ConnectDjinniHint, JobViews.DraftKeyboard(vacancy), ct);
+            return "Спершу підключи Djinni";
+        }
+
+        if (jobs.IsRunning(ctx.ChatId, "apply"))
+            return "Вже подаю попередній відгук…";
+
+        var settings = await settingsRepository.GetOrCreateAsync(ctx.ChatId, ct);
+        var baseCv = string.IsNullOrWhiteSpace(settings.CvJson) ? null : CvData.TryParse(settings.CvJson, out _);
+        var profile = settings.Profile;
+        var vacancyId = vacancy.Id;
+        var progress = await ui.StartProgressAsync(ctx, baseCv is null ? "⏳ Надсилаю відгук на Djinni…" : "⏳ Готую CV під вакансію…", ct);
+
+        jobs.TryStart(ctx.ChatId, "apply", async jobCt =>
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var sp = scope.ServiceProvider;
+            var repo = sp.GetRequiredService<IVacancyRepository>();
+            if (await repo.GetAsync(vacancyId, jobCt) is not { Draft: { } draft } current)
+                return;
+
+            ApplyAttachment? attachment = null;
+            if (baseCv is not null)
+            {
+                TailoredCv tailored;
+                try
+                {
+                    tailored = await sp.GetRequiredService<CvTailor>().TailorAsync(baseCv, profile, current, jobCt);
+                }
+                catch (LlmUnavailableException)
+                {
+                    tailored = new TailoredCv(baseCv.Clone(), [], false);
+                }
+
+                attachment = new ApplyAttachment(CvHandler.FileName(baseCv.Name, current.Company), sp.GetRequiredService<ICvRenderer>().Render(tailored.Cv));
+                await progress.UpdateAsync("⏳ Надсилаю відгук на Djinni…", jobCt, force: true);
+            }
+
+            var result = await applicant.ApplyAsync(current, draft, attachment, jobCt);
+            var now = sp.GetRequiredService<IClock>().UtcNow;
+            switch (result.Outcome)
+            {
+                case ApplyOutcome.Applied or ApplyOutcome.AlreadyApplied:
+                    current.Status = VacancyStatus.Applied;
+                    current.AppliedAt ??= now;
+                    break;
+                case ApplyOutcome.NotAvailable:
+                    current.IsInactive = true;
+                    break;
+            }
+
+            current.UpdatedAt = now;
+            await repo.SaveChangesAsync(jobCt);
+
+            var sentCv = result.Outcome == ApplyOutcome.Applied && attachment is not null;
+            await progress.CompleteAsync(JobViews.ApplyResultView(current, result, sentCv), JobViews.ApplyResultKeyboard(current, result), jobCt);
+            if (sentCv)
+                await ui.SendDocumentAsync(ctx.ChatId, attachment!.Content, attachment.FileName, "📎 Це CV пішло разом з відгуком.", null, jobCt);
         });
         return null;
     }
