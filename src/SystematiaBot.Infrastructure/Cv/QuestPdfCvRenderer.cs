@@ -160,7 +160,7 @@ public sealed class QuestPdfCvRenderer : ICvRenderer
         foreach (var name in assembly.GetManifestResourceNames().Where(n => n.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)))
         {
             using var stream = assembly.GetManifestResourceStream(name)!;
-            FontManager.RegisterFont(stream);
+            FontManager.RegisterFontFromStream(stream);
         }
 
         return true;

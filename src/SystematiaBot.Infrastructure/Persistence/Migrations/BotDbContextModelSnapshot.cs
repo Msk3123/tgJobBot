@@ -26,6 +26,9 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                     b.Property<long>("At")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("CachedTokens")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double>("CostUsd")
                         .HasColumnType("REAL");
 
@@ -35,11 +38,17 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                     b.Property<int>("InputTokens")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Model")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Operation")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("OutputTokens")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReasoningTokens")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
@@ -110,11 +119,17 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                     b.Property<long>("ChatId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CvJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("DigestEnabled")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateOnly?>("LastDigestDate")
                         .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastFeedSyncAt")
+                        .HasColumnType("INTEGER");
 
                     b.Property<long?>("LastMailSyncAt")
                         .HasColumnType("INTEGER");
@@ -133,10 +148,16 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AlsoOn")
+                        .HasColumnType("TEXT");
+
                     b.Property<long?>("AppliedAt")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Company")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DedupKey")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
@@ -151,9 +172,15 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("DraftWarnings")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ExperienceMonths")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ExternalId")
                         .IsRequired()
                         .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilterReason")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("FitReasons")
@@ -165,6 +192,15 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("FitVerdict")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("FollowUpDoneAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FollowUpDraft")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("FollowUpRemindedAt")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("FoundAt")
                         .HasColumnType("INTEGER");
 
@@ -175,6 +211,9 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("Notified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PostedAt")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Salary")
@@ -202,6 +241,8 @@ namespace SystematiaBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DedupKey");
 
                     b.HasIndex("Status");
 

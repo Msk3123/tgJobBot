@@ -106,7 +106,7 @@ public class VacancyPriorityTests
 
         fresh.ShouldBe(70);
         old.ShouldBe(47);
-        fresh.ShouldBeGreaterThan(old!.Value);
+        fresh!.Value.ShouldBeGreaterThan(old!.Value);
     }
 
     [Fact]
