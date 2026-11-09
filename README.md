@@ -117,7 +117,7 @@ docker compose logs -f
 
 1. Увійди на djinni.co у звичайному Chrome → F12 → Application → Cookies → `https://djinni.co` → скопіюй `sessionid`.
 2. `./scripts/connect-djinni.ps1 -SshHost <ssh-alias> -ComposeDir /opt/jobhunter -Service jobhunter` → встав. Скрипт перевірить сесію на Djinni, запише її на сервер і перезапустить бота.
-3. Не натискай «Вийти» в тому браузері: це вимкне і сесію бота. Коли сесія закінчиться, бот напише, і скрипт треба запустити ще раз.
+3. Djinni тримає сесію в підписаній cookie (Django signed cookies), тому вихід у браузері її не вимикає, а зміна пароля — вимикає. Коли сесія перестане працювати, бот напише, і скрипт треба запустити ще раз.
 
 ### 7. LinkedIn (за бажанням)
 

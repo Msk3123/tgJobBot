@@ -196,7 +196,7 @@ public static class JobViews
         "1. Увійди на djinni.co у звичайному Chrome.\n" +
         "2. F12 → Application → Cookies → https://djinni.co → скопіюй значення <code>sessionid</code>.\n" +
         "3. На ПК: <code>./scripts/connect-djinni.ps1</code> і встав його.\n\n" +
-        "Не натискай «Вийти» в тому браузері: це вимкне і сесію бота. Поки що можна податись вручну.";
+        "Сесія злетить, якщо зміниш пароль на Djinni; тоді бот скаже, і скрипт треба запустити ще раз. Поки що можна податись вручну.";
 
     public static string ApplyResultView(Vacancy v, ApplyResult result, bool cvAttached)
     {

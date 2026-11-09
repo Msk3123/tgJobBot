@@ -28,7 +28,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = [Text.Encoding]::UTF8   # the CLI prints Ukrainian text
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)   # the CLI prints Ukrainian text
 . (Join-Path $PSScriptRoot "ServerEnv.ps1")
 $repo = Split-Path $PSScriptRoot -Parent
 $cli = Join-Path $repo "src/SystematiaBot.Cli"
@@ -41,6 +41,7 @@ $env:Gmail__ClientId = $clientId
 $env:Gmail__ClientSecret = $clientSecret
 $script:token = $null
 try {
+    $ErrorActionPreference = "Continue"   # build warnings on stderr are not failures
     Write-Host "`nЗараз відкриється браузер. Увійди в акаунт, куди приходять листи Djinni і LinkedIn.`n"
     & dotnet run --project $cli -- gmail-auth 2>&1 | ForEach-Object {
         $line = "$_"
@@ -49,6 +50,7 @@ try {
     }
 }
 finally {
+    $ErrorActionPreference = "Stop"
     Remove-Item Env:Gmail__ClientId, Env:Gmail__ClientSecret -ErrorAction SilentlyContinue
 }
 

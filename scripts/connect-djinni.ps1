@@ -9,8 +9,8 @@
   3. Run this script and paste it. It checks the session with Djinni, writes it into the server's .env
      over SSH (secret never on a command line or in history) and restarts the bot.
 
-  Do not press "Вийти" (log out) in that browser: logging out kills this session for the bot too.
-  When the session expires, the bot says so; run the script again.
+  Djinni keeps the session in a signed cookie, so logging out in the browser does not end the bot's copy;
+  changing the Djinni password does. When the session stops working, the bot says so; run the script again.
 
 .EXAMPLE
   ./scripts/connect-djinni.ps1 -SshHost my-server -ComposeDir /opt/jobhunter -Service jobhunter
@@ -28,13 +28,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = [Text.Encoding]::UTF8
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 Add-Type -AssemblyName System.Net.Http
 . (Join-Path $PSScriptRoot "ServerEnv.ps1")
 
 Write-Host "Chrome → djinni.co (увійди) → F12 → Application → Cookies → https://djinni.co → значення sessionid`n"
 $session = [Net.NetworkCredential]::new("", (Read-Host "sessionid" -AsSecureString)).Password.Trim()
-if ($session -notmatch '^[A-Za-z0-9]{16,128}$') { throw "Це не схоже на sessionid: очікую 16–128 латинських літер і цифр." }
+# Djinni keeps sessions in signed cookies (Django signing): ".eJy…:timestamp:signature", a few hundred characters.
+if ($session -notmatch '^[A-Za-z0-9._:\-]{16,4096}$') { throw "Це не схоже на sessionid: скопіюй значення cookie повністю, без лапок і пробілів." }
 
 # Same check the bot does: a logged-in session gets /my/profile/, an expired one is redirected to /login.
 $handler = [Net.Http.HttpClientHandler]::new()
