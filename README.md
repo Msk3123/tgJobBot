@@ -26,7 +26,7 @@ flowchart LR
 | Джерело | Як потрапляє | Що є у вакансії |
 |---|---|---|
 | Djinni | листи «Нові вакансії» в Gmail + сторінка вакансії | повний опис, дата публікації, вимога до досвіду |
-| DOU | RSS `jobs.dou.ua/vacancies/feeds/` (Jobs:DouFeeds) | повний опис, дата публікації |
+| DOU | RSS `jobs.dou.ua/vacancies/feeds/` (Jobs:DouFeeds) | повний опис, дата публікації. ⚠️ DOU стоїть за Cloudflare, який не пускає IP дата-центрів (DigitalOcean, Hetzner) навіть до RSS. Бот це не обходить: на такому сервері `Jobs__DouEnabled=false`, з домашнього IP працює |
 | LinkedIn | листи job alerts у Gmail | тільки назва, компанія, локація: сторінки LinkedIn бот не читає (це заборонено їхніми правилами) |
 | Будь-яке | посилання djinni.co/jobs/… у чаті | як у Djinni |
 

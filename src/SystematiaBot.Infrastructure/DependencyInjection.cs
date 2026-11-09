@@ -42,7 +42,8 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All, UseCookies = false });
         services.AddSingleton<IVacancyPageFetcher, DjinniPageFetcher>();
 
-        if (configuration.GetSection(JobOptions.Section).GetSection(nameof(JobOptions.DouFeeds)).Get<List<string>>() is { Count: > 0 })
+        var jobs = configuration.GetSection(JobOptions.Section).Get<JobOptions>() ?? new JobOptions();
+        if (jobs.DouEnabled && jobs.DouFeeds.Count > 0)
         {
             services.AddHttpClient(DouRssFeed.HttpClientName, c =>
             {

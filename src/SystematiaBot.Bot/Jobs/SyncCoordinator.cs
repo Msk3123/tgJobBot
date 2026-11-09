@@ -49,8 +49,12 @@ public sealed class SyncCoordinator(IServiceScopeFactory scopeFactory, JobNotifi
             var feedSync = sp.GetRequiredService<FeedSyncService>();
             if (feeds && feedSync.HasFeeds)
             {
-                feedVacancies = await feedSync.SyncAsync(settings.Profile, ct);
-                settings.LastFeedSyncAt = clock.UtcNow;
+                var feedResult = await feedSync.SyncAsync(settings.Profile, ct);
+                feedVacancies = feedResult.Created;
+                if (feedResult.Error is { } feedError)
+                    errors.Record("DOU", new InvalidOperationException(feedError));
+                else
+                    settings.LastFeedSyncAt = clock.UtcNow;
             }
 
             await settingsRepository.SaveAsync(settings, ct);

@@ -13,11 +13,8 @@ COPY src/ src/
 RUN dotnet publish src/SystematiaBot.Bot/SystematiaBot.Bot.csproj -c Release -o /out --no-restore -p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0
-# QuestPDF's native libqpdf links against zlib, which the .NET 9+ runtime images no longer ship.
+# QuestPDF's native libs need only libstdc++, libgcc and zlib, all present in this image.
 # Fonts are embedded in the assembly, so no fontconfig or system fonts are needed.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends zlib1g \
-    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV DOTNET_ENVIRONMENT=Production \
     TZ=Europe/Kyiv

@@ -18,6 +18,12 @@ public sealed class JobOptions
     /// <summary>RSS feeds of boards that publish vacancies without e-mail (DOU).</summary>
     public List<string> DouFeeds { get; set; } = [];
 
+    /// <summary>
+    /// DOU sits behind Cloudflare, which challenges datacenter IPs (DigitalOcean, Hetzner…) even for RSS.
+    /// The bot does not try to get around that: on such a server set Jobs__DouEnabled=false.
+    /// </summary>
+    public bool DouEnabled { get; set; } = true;
+
     public int FeedPollMinutes { get; set; } = 30;
 
     /// <summary>The prefilter skips vacancies asking for more experience than this, without an LLM call.</summary>

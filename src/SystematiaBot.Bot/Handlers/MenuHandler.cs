@@ -127,7 +127,7 @@ public sealed class MenuHandler(
         sb.AppendLine($"Gmail: {(mailbox.IsConfigured ? "підключено" : "не підключено")} · остання перевірка: {(settings.LastMailSyncAt is { } at ? JobViews.Date(at) : "—")}");
         sb.AppendLine(feeds.HasFeeds
             ? $"DOU RSS: остання перевірка {(settings.LastFeedSyncAt is { } feedAt ? JobViews.Date(feedAt) : "—")}"
-            : "DOU RSS: вимкнено (Jobs:DouFeeds)");
+            : "DOU RSS: вимкнено (Jobs:DouEnabled=false або порожній Jobs:DouFeeds)");
         sb.AppendLine($"CV: {(string.IsNullOrWhiteSpace(settings.CvJson) ? "не завантажено (/cv)" : "є")}");
 
         if (openAiOptions.Value.IsConfigured)
