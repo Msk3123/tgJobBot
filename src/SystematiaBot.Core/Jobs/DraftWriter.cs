@@ -39,7 +39,7 @@ public sealed class DraftWriter(ILlmClient llm, IPromptStore prompts, ILogger<Dr
         {
             var extra = ungrounded.Count == 0 ? "" :
                 $"\n\nYour previous draft mentioned {string.Join(", ", ungrounded)}. These are NOT in the candidate profile. Do not mention them.";
-            var response = await llm.CompleteAsync(new LlmRequest(promptName, system + extra, user, MaxOutputTokens: 900), ct);
+            var response = await llm.CompleteAsync(new LlmRequest(promptName, system + extra, user, MaxOutputTokens: 3000), ct);
             var dto = LlmJson.TryParse<DraftDto>(response.Text);
             if (string.IsNullOrWhiteSpace(dto?.Message))
             {

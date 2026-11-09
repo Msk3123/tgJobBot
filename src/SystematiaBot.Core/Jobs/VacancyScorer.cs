@@ -15,8 +15,10 @@ public sealed class VacancyScorer(ILlmClient llm, IPromptStore prompts, ILogger<
     {
         // The profile is trusted and goes into the system prompt; the vacancy is third-party text and
         // goes into the user turn inside a tag, so instructions hidden in a posting stay data.
+        // The system prompt is identical for every vacancy, so the provider serves it from the prompt cache.
+        // The output cap is generous because reasoning tokens count against it; the visible JSON is ~200 tokens.
         var system = prompts.Render("vacancy_score", new Dictionary<string, string> { ["profile"] = profile });
-        var request = new LlmRequest("score", system, VacancyPrompt.Render(vacancy), MaxOutputTokens: 600);
+        var request = new LlmRequest("score", system, VacancyPrompt.Render(vacancy), MaxOutputTokens: 2500);
 
         for (var attempt = 1; attempt <= 2; attempt++)
         {
