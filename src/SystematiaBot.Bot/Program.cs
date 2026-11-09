@@ -87,7 +87,11 @@ try
         Log.Warning("Bot:OwnerId is not set: the bot answers nobody. Send /start and look for your user id in the log");
 
     await using (var scope = host.Services.CreateAsyncScope())
+    {
         await scope.ServiceProvider.GetRequiredService<BotDbContext>().Database.MigrateAsync();
+        var seedLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(OwnerSeed));
+        await OwnerSeed.ImportAsync(scope.ServiceProvider, botOptions.OwnerId, paths.Data, seedLogger);
+    }
 
     Log.Information("Job Hunter starting, version {Version}", BuildInfo.Version);
     await host.RunAsync();
