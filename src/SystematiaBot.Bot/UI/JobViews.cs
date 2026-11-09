@@ -1,6 +1,7 @@
 using System.Text;
 using SystematiaBot.Bot.Routing;
 using SystematiaBot.Core.Entities;
+using SystematiaBot.Core.Jobs;
 using SystematiaBot.Infrastructure.Time;
 using Telegram.Bot.Types.ReplyMarkups;
 using static SystematiaBot.Bot.UI.Keyboards;
@@ -60,8 +61,17 @@ public static class JobViews
         _ => null
     };
 
+    public static string SourceLabel(string source) => source switch
+    {
+        "djinni" => "Djinni",
+        "dou" => "DOU",
+        "linkedin" => "LinkedIn",
+        _ => source
+    };
+
     public static string Card(Vacancy v)
     {
+        var now = DateTimeOffset.UtcNow;
         var sb = new StringBuilder();
         sb.Append(v.Status == VacancyStatus.New ? "🆕 " : "💼 ").Append("<b>").Append(Escape(v.Title)).AppendLine("</b>");
 
@@ -70,15 +80,20 @@ public static class JobViews
             meta.Add("🏢 " + Escape(v.Company));
         if (!string.IsNullOrWhiteSpace(v.Salary))
             meta.Add("💰 " + Escape(v.Salary));
-        if (meta.Count > 0)
-            sb.AppendLine(string.Join(" · ", meta));
+        meta.Add("🌐 " + SourceLabel(v.Source));
+        sb.AppendLine(string.Join(" · ", meta));
         if (!string.IsNullOrWhiteSpace(v.Details))
             sb.AppendLine("<i>" + Escape(v.Details) + "</i>");
+        sb.AppendLine($"🕐 {(v.PostedAt is null ? "знайдено" : "опубліковано")} {VacancyPriority.FormatAge(VacancyPriority.Age(v, now))}");
 
         sb.AppendLine();
-        if (v.FitScore is { } fit)
+        if (v.FilterReason is not null)
         {
-            sb.AppendLine($"🎯 <b>Збіг {fit}%</b> — {Verdict(v.FitVerdict)}");
+            sb.AppendLine($"🚫 Автофільтр без LLM: {Escape(v.FilterReason)}");
+        }
+        else if (v.FitScore is { } fit)
+        {
+            sb.AppendLine($"🎯 <b>Збіг {fit}%</b> — {Verdict(v.FitVerdict)} · ⚡ пріоритет {VacancyPriority.Score(v, now)}");
             foreach (var reason in Lines(v.FitReasons))
                 sb.AppendLine("✅ " + Escape(reason));
             foreach (var gap in Lines(v.Gaps))
@@ -89,8 +104,15 @@ public static class JobViews
             sb.AppendLine("🎯 Ще не оцінено");
         }
 
+        if (v.Source == "linkedin" && string.IsNullOrWhiteSpace(v.Description))
+            sb.AppendLine("ℹ️ LinkedIn не віддає опис ботам, тож оцінка лише за назвою і компанією.");
         if (v.IsInactive)
             sb.AppendLine("⛔ <b>Вакансія вже неактивна</b>");
+
+        var also = Lines(v.AlsoOn).Select(l => l.Split(' ', 2)).Where(p => p.Length == 2)
+            .Select(p => $"<a href=\"{Escape(p[1])}\">{SourceLabel(p[0])}</a>").ToList();
+        if (also.Count > 0)
+            sb.AppendLine("📎 Також на: " + string.Join(", ", also));
 
         sb.AppendLine().Append("Статус: ").Append(StatusLabel(v.Status));
         if (v.AppliedAt is { } applied)
@@ -120,9 +142,12 @@ public static class JobViews
                 break;
         }
 
-        var links = new List<InlineKeyboardButton> { Url("🔗 Djinni", v.Url) };
+        if (v.Status is not (VacancyStatus.Rejected or VacancyStatus.Skipped or VacancyStatus.Offer))
+            rows.Add([Btn("📄 CV під вакансію", Cb.Cv(v.Id))]);
+
+        var links = new List<InlineKeyboardButton> { Url("🔗 " + SourceLabel(v.Source), v.Url) };
         if (v.FitScore is null && !v.IsInactive)
-            links.Add(Btn("🎯 Оцінити", Cb.Rescore(v.Id)));
+            links.Add(Btn(v.FilterReason is null ? "🎯 Оцінити" : "🎯 Все одно оцінити", Cb.Rescore(v.Id)));
         rows.Add([.. links]);
         rows.Add(BackToMenu);
         return Rows(rows);
@@ -152,7 +177,10 @@ public static class JobViews
 
     public static string ListItem(Vacancy v)
     {
-        var score = v.FitScore is { } fit ? $"{fit}% · " : "";
+        if (v.FilterReason is not null)
+            return Truncate($"🚫 {v.FilterReason} · {v.Title}", 60);
+
+        var score = VacancyPriority.Score(v, DateTimeOffset.UtcNow) is { } priority ? $"⚡{priority} · " : "";
         var company = string.IsNullOrWhiteSpace(v.Company) ? "" : $" — {v.Company}";
         var status = v.Status == VacancyStatus.New ? "" : $"{StatusIcon(v.Status)} ";
         return Truncate($"{status}{score}{v.Title}{company}", 60);
@@ -218,6 +246,38 @@ public static class JobViews
         var title = e.Vacancy?.Title is { } t ? $" — {t}" : "";
         return Truncate($"{icon} {KyivDate(e.ReceivedAt)} {who}{title}", 60);
     }
+
+    public static string FollowUpCard(Vacancy v, int days)
+    {
+        var sb = new StringBuilder();
+        sb.Append($"⏰ <b>{Plural(days, "день", "дні", "днів")} без відповіді</b>\n");
+        sb.Append(Escape(v.Title));
+        if (!string.IsNullOrWhiteSpace(v.Company))
+            sb.Append(" · ").Append(Escape(v.Company));
+        sb.Append("\n\nОдин короткий follow-up без тиску часто повертає заявку нагору в рекрутера. Другий уже зайвий.");
+        return sb.ToString();
+    }
+
+    public static InlineKeyboardMarkup FollowUpKeyboard(Vacancy v, string? inboxUrl) => Rows(
+        [Btn("✍️ Чернетка follow-up", Cb.FollowUp(v.Id))],
+        [Btn("✅ Вже написав", Cb.FollowUpDone(v.Id)), Btn("🔕 Не треба", Cb.FollowUpMute(v.Id))],
+        [Url(inboxUrl is null ? "🔗 Вакансія" : "🔗 Розмова в Djinni", inboxUrl ?? v.Url)]);
+
+    public static string FollowUpView(Vacancy v)
+    {
+        var sb = new StringBuilder();
+        sb.Append("✍️ <b>Follow-up:</b> ").Append(Escape(v.Title));
+        if (!string.IsNullOrWhiteSpace(v.Company))
+            sb.Append(" · ").Append(Escape(v.Company));
+        sb.Append("\n\n<pre>").Append(Escape(v.FollowUpDraft)).Append("</pre>\n\n");
+        sb.Append("Надішли в ту ж розмову, де подавався. Потім натисни «✅ Вже написав».");
+        return sb.ToString();
+    }
+
+    public static InlineKeyboardMarkup FollowUpDraftKeyboard(Vacancy v, string? inboxUrl) => Rows(
+        [Url(inboxUrl is null ? "🔗 Вакансія" : "🔗 Розмова в Djinni", inboxUrl ?? v.Url)],
+        [Btn("✅ Вже написав", Cb.FollowUpDone(v.Id)), Btn("🔄 Інший варіант", Cb.FollowUpAgain(v.Id))],
+        [Btn("⬅️ До вакансії", Cb.Vacancy(v.Id))]);
 
     public static string Date(DateTimeOffset utc) => KyivTime.ToKyiv(utc).ToString("dd.MM HH:mm");
 

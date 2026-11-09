@@ -36,4 +36,16 @@ public sealed class LlmUsageRepository(BotDbContext db) : ILlmUsageRepository
 
     public async Task<double> GetCostAsync(DateOnly day, CancellationToken ct) =>
         await db.LlmUsages.Where(u => u.Day == day).SumAsync(u => u.CostUsd, ct);
+
+    public async Task<List<LlmUsageSummary>> GetSummaryAsync(DateOnly fromDay, CancellationToken ct)
+    {
+        // SQLite cannot SUM into long through a GroupBy translation reliably, so rows are aggregated in memory.
+        // A month of personal usage is a few hundred rows.
+        var rows = await db.LlmUsages.Where(u => u.Day >= fromDay).ToListAsync(ct);
+        return rows.GroupBy(u => u.Model ?? "?")
+            .Select(g => new LlmUsageSummary(g.Key, g.Count(), g.Sum(u => (long)u.InputTokens), g.Sum(u => (long)u.CachedTokens),
+                g.Sum(u => (long)u.OutputTokens), g.Sum(u => (long)u.ReasoningTokens), g.Sum(u => u.CostUsd)))
+            .OrderByDescending(s => s.CostUsd)
+            .ToList();
+    }
 }

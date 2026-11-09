@@ -15,8 +15,7 @@ public sealed class MailSyncService(
     IMailbox mailbox,
     IMailEventRepository mails,
     IVacancyRepository vacancies,
-    IVacancyPageFetcher pages,
-    VacancyScorer scorer,
+    VacancyIntake intake,
     IClock clock,
     IOptions<JobOptions> options,
     ILogger<MailSyncService> logger)
@@ -28,7 +27,7 @@ public sealed class MailSyncService(
         var ids = await mailbox.SearchAsync(options.Value.MailQuery, options.Value.MaxMailsPerSync, ct);
         var read = 0;
         var newEvents = 0;
-        var toEnrich = new List<Vacancy>();
+        var toIngest = new List<VacancyCandidate>();
 
         // Oldest first, so an alert is processed before a later reply about the same vacancy.
         foreach (var id in ids.Reverse())
@@ -38,7 +37,10 @@ public sealed class MailSyncService(
 
             var message = await mailbox.GetAsync(id, ct);
             read++;
-            var parsed = DjinniMailParser.Parse(message.Subject, message.PlainText);
+            var parsed = message.From.Contains("linkedin.com", StringComparison.OrdinalIgnoreCase)
+                ? LinkedInMailParser.Parse(message.PlainText)
+                : DjinniMailParser.Parse(message.Subject, message.PlainText);
+
             var mailEvent = new MailEvent
             {
                 GmailId = id,
@@ -54,14 +56,16 @@ public sealed class MailSyncService(
 
             foreach (var item in parsed.Vacancies)
             {
-                var (vacancy, created) = await GetOrCreateAsync(item, parsed.Kind, ct);
-                if (created && parsed.Kind == MailKind.VacancyAlert)
-                    toEnrich.Add(vacancy);
-                if (parsed.Kind != MailKind.VacancyAlert)
+                if (parsed.Kind == MailKind.VacancyAlert)
                 {
-                    mailEvent.Vacancy = vacancy;
-                    ApplyConversation(vacancy, parsed.Kind);
+                    // E-mails carry no publication date; for alerts the delivery time is a close proxy.
+                    toIngest.Add(VacancyCandidate.From(item) with { PostedAt = message.ReceivedAt });
+                    continue;
                 }
+
+                var vacancy = await GetOrCreateForConversationAsync(item, ct);
+                mailEvent.Vacancy = vacancy;
+                ApplyConversation(vacancy, parsed.Kind);
             }
 
             if (parsed.Kind is MailKind.RecruiterMessage or MailKind.Rejection)
@@ -71,14 +75,18 @@ public sealed class MailSyncService(
             await mails.SaveChangesAsync(ct);
         }
 
-        foreach (var vacancy in toEnrich)
-            await EnrichAndScoreAsync(vacancy, profile, ct);
+        var created = 0;
+        foreach (var candidate in toIngest.DistinctBy(c => (c.Source, c.ExternalId)))
+        {
+            if ((await intake.IngestAsync(candidate, profile, applyPrefilter: true, ct)).Created)
+                created++;
+        }
 
-        logger.LogInformation("Mail sync: {Read} new e-mails, {Vacancies} new vacancies, {Events} conversation events", read, toEnrich.Count, newEvents);
-        return new SyncResult(read, toEnrich.Count, newEvents);
+        logger.LogInformation("Mail sync: {Read} new e-mails, {Vacancies} new vacancies, {Events} conversation events", read, created, newEvents);
+        return new SyncResult(read, created, newEvents);
     }
 
-    /// <summary>The owner pasted a djinni.co/jobs link into the chat.</summary>
+    /// <summary>The owner pasted a djinni.co/jobs link into the chat: no prefilter, they asked for this one.</summary>
     public async Task<Vacancy?> AddFromUrlAsync(string url, string? profile, CancellationToken ct)
     {
         if (!DjinniMailParser.TryParseJobUrl(url, out var externalId, out var canonical))
@@ -88,83 +96,45 @@ public sealed class MailSyncService(
         if (existing is not null)
         {
             if (existing.FitScore is null)
-                await EnrichAndScoreAsync(existing, profile, ct);
+                await intake.EnrichAndScoreAsync(existing, profile, applyPrefilter: false, ct);
             return existing;
         }
 
-        var vacancy = NewVacancy(new ParsedVacancy(externalId, canonical, $"Вакансія {externalId}", null, null, null, null), VacancyStatus.New);
-        vacancy.Notified = true;
-        vacancies.Add(vacancy);
+        var result = await intake.IngestAsync(new VacancyCandidate(DjinniMailParser.Source, externalId, canonical, $"Вакансія {externalId}"), profile, applyPrefilter: false, ct);
+        result.Vacancy.Notified = true;
         await vacancies.SaveChangesAsync(ct);
-        await EnrichAndScoreAsync(vacancy, profile, ct);
-        return vacancy;
+        return result.Vacancy;
     }
 
-    public async Task EnrichAndScoreAsync(Vacancy vacancy, string? profile, CancellationToken ct)
+    public Task EnrichAndScoreAsync(Vacancy vacancy, string? profile, CancellationToken ct) =>
+        intake.EnrichAndScoreAsync(vacancy, profile, applyPrefilter: false, ct);
+
+    private async Task<Vacancy> GetOrCreateForConversationAsync(ParsedVacancy item, CancellationToken ct)
     {
-        var page = await pages.FetchAsync(vacancy.Url, ct);
-        if (page is not null)
-        {
-            vacancy.Title = page.Title ?? vacancy.Title;
-            vacancy.Company = page.Company ?? vacancy.Company;
-            vacancy.Description = page.Description ?? vacancy.Description;
-            vacancy.IsInactive = page.IsInactive;
-        }
-
-        if (!string.IsNullOrWhiteSpace(profile) && scorer.IsConfigured && !vacancy.IsInactive)
-        {
-            try
-            {
-                if (await scorer.ScoreAsync(profile, vacancy, ct) is { } fit)
-                {
-                    vacancy.FitScore = fit.Score;
-                    vacancy.FitVerdict = fit.Verdict;
-                    vacancy.FitReasons = string.Join('\n', fit.Reasons);
-                    vacancy.Gaps = string.Join('\n', fit.Gaps);
-                }
-            }
-            catch (LlmUnavailableException ex)
-            {
-                // Budget exhausted or provider down: keep the vacancy unscored, the owner still gets the card.
-                logger.LogWarning("Vacancy {Id} left unscored: {Reason}", vacancy.Id, ex.Message);
-            }
-        }
-
-        // Low-fit and inactive vacancies are kept for history but never pushed to the phone.
-        if (vacancy.IsInactive || vacancy.FitScore < options.Value.MinFitToNotify)
-            vacancy.Notified = true;
-
-        vacancy.UpdatedAt = clock.UtcNow;
-        await vacancies.SaveChangesAsync(ct);
-    }
-
-    private async Task<(Vacancy Vacancy, bool Created)> GetOrCreateAsync(ParsedVacancy item, MailKind kind, CancellationToken ct)
-    {
-        var existing = await vacancies.FindAsync(DjinniMailParser.Source, item.ExternalId, ct);
+        var existing = await vacancies.FindAsync(item.Source, item.ExternalId, ct);
         if (existing is not null)
-            return (existing, false);
+            return existing;
 
         // A vacancy first seen in a reply means the owner already applied to it outside the bot.
-        var vacancy = NewVacancy(item, kind == MailKind.VacancyAlert ? VacancyStatus.New : VacancyStatus.Applied);
-        vacancy.Notified = kind != MailKind.VacancyAlert;
+        var vacancy = new Vacancy
+        {
+            Source = item.Source,
+            ExternalId = item.ExternalId,
+            Url = item.Url,
+            Title = item.Title,
+            Company = item.Company,
+            Salary = item.Salary,
+            Details = item.Details,
+            Description = item.Snippet,
+            DedupKey = VacancyDedup.Key(item.Company, item.Title),
+            Status = VacancyStatus.Applied,
+            FoundAt = clock.UtcNow,
+            UpdatedAt = clock.UtcNow,
+            Notified = true
+        };
         vacancies.Add(vacancy);
-        return (vacancy, true);
+        return vacancy;
     }
-
-    private Vacancy NewVacancy(ParsedVacancy item, VacancyStatus status) => new()
-    {
-        Source = DjinniMailParser.Source,
-        ExternalId = item.ExternalId,
-        Url = item.Url,
-        Title = item.Title,
-        Company = item.Company,
-        Salary = item.Salary,
-        Details = item.Details,
-        Description = item.Snippet,
-        Status = status,
-        FoundAt = clock.UtcNow,
-        UpdatedAt = clock.UtcNow
-    };
 
     /// <summary>Moves the vacancy forward on a reply; never moves it back (an interview stays an interview after an auto-reply).</summary>
     private void ApplyConversation(Vacancy vacancy, MailKind kind)

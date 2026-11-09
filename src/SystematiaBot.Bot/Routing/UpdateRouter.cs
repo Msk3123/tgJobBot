@@ -10,13 +10,14 @@ using Telegram.Bot.Types.Enums;
 
 namespace SystematiaBot.Bot.Routing;
 
-/// <summary>Entry point for every update: owner check, commands, awaited text input, pasted vacancy links and callback dispatch.</summary>
+/// <summary>Entry point for every update: owner check, commands, awaited text input, CV upload, pasted vacancy links and callback dispatch.</summary>
 public sealed partial class UpdateRouter(
     IEnumerable<ICallbackHandler> callbackHandlers,
     IEnumerable<ITextInputHandler> textHandlers,
     MenuHandler menu,
     VacancyHandler vacancies,
     ProfileHandler profile,
+    CvHandler cv,
     UserStateStore state,
     BackgroundJobRunner jobs,
     BotUi ui,
@@ -41,6 +42,9 @@ public sealed partial class UpdateRouter(
         {
             switch (update.Type)
             {
+                case UpdateType.Message when update.Message!.Document is { } document:
+                    await cv.ImportAsync(ctx, document, ct);
+                    break;
                 case UpdateType.Message when update.Message!.Text is { } text:
                     await OnTextAsync(ctx, text, ct);
                     break;
@@ -129,6 +133,9 @@ public sealed partial class UpdateRouter(
                 return;
             case "/status":
                 await menu.ShowStatusAsync(ctx, ct);
+                return;
+            case "/cv":
+                await cv.ShowAsync(ctx, ct);
                 return;
             case "/cancel":
                 state.Reset(ctx.ChatId);

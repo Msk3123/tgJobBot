@@ -69,10 +69,12 @@ try
     builder.Services.AddScoped<MenuHandler>();
     builder.Services.AddScoped<VacancyHandler>();
     builder.Services.AddScoped<ProfileHandler>();
+    builder.Services.AddScoped<CvHandler>();
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<MenuHandler>());
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<VacancyHandler>());
     builder.Services.AddScoped<ICallbackHandler, ConversationHandler>();
     builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<ProfileHandler>());
+    builder.Services.AddScoped<ICallbackHandler>(sp => sp.GetRequiredService<CvHandler>());
     builder.Services.AddScoped<ITextInputHandler>(sp => sp.GetRequiredService<ProfileHandler>());
 
     builder.Services.AddHostedService<BotWorker>();

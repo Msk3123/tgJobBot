@@ -4,7 +4,7 @@ using SystematiaBot.Core.Entities;
 
 namespace SystematiaBot.Core.Jobs;
 
-public sealed record ParsedVacancy(string ExternalId, string Url, string Title, string? Company, string? Salary, string? Details, string? Snippet);
+public sealed record ParsedVacancy(string ExternalId, string Url, string Title, string? Company, string? Salary, string? Details, string? Snippet, string Source = DjinniMailParser.Source);
 
 public sealed record ParsedMail(
     MailKind Kind,

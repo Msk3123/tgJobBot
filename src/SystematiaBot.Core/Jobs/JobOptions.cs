@@ -4,8 +4,8 @@ public sealed class JobOptions
 {
     public const string Section = "Jobs";
 
-    /// <summary>Gmail search for the poller. Djinni sends every alert, message and rejection from this address.</summary>
-    public string MailQuery { get; set; } = "from:magic@djinni.co newer_than:3d";
+    /// <summary>Gmail search for the poller: Djinni sends alerts, messages and rejections; LinkedIn sends job alerts.</summary>
+    public string MailQuery { get; set; } = "from:(magic@djinni.co OR jobalerts-noreply@linkedin.com OR jobs-noreply@linkedin.com) newer_than:3d";
 
     public int PollMinutes { get; set; } = 5;
 
@@ -14,4 +14,15 @@ public sealed class JobOptions
 
     /// <summary>Vacancies scoring below this still get stored but no card is sent.</summary>
     public int MinFitToNotify { get; set; } = 40;
+
+    /// <summary>RSS feeds of boards that publish vacancies without e-mail (DOU).</summary>
+    public List<string> DouFeeds { get; set; } = [];
+
+    public int FeedPollMinutes { get; set; } = 30;
+
+    /// <summary>The prefilter skips vacancies asking for more experience than this, without an LLM call.</summary>
+    public int MaxExperienceMonths { get; set; } = 30;
+
+    /// <summary>Remind about a follow-up when an application got no reply for this many days.</summary>
+    public int FollowUpDays { get; set; } = 5;
 }

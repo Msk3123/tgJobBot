@@ -25,6 +25,7 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
         {
             e.HasIndex(v => new { v.Source, v.ExternalId }).IsUnique();
             e.HasIndex(v => v.Status);
+            e.HasIndex(v => v.DedupKey);
             e.Property(v => v.Source).HasMaxLength(32);
             e.Property(v => v.ExternalId).HasMaxLength(64);
         });

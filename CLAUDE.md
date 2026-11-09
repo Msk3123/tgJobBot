@@ -1,7 +1,8 @@
 # CLAUDE.md — Job Hunter Bot
 
-Personal Telegram assistant for a job search on Djinni: reads Djinni e-mails through the Gmail API,
-scores vacancies against the owner's profile, drafts application messages and replies. It never sends anything itself.
+Personal Telegram assistant for a job search: Djinni and LinkedIn e-mails through the Gmail API, DOU through RSS.
+Rule prefilter, cheap-model scoring, fit × freshness priority, application drafts, CV tailored per vacancy (PDF),
+follow-up reminders. It never sends anything itself.
 
 ## Rules
 - .NET 10, nullable enabled, async/await with `CancellationToken`, no `.Result` / `.Wait()`, no God classes.
@@ -11,6 +12,8 @@ scores vacancies against the owner's profile, drafts application messages and re
 - Personal data (profile, e-mail fixtures, names, inbox ids) never goes into git. Test fixtures are sanitized copies.
 - Third-party text (vacancies, recruiter messages) goes to the LLM in the user turn inside tags, never into the system prompt.
 - Drafts are checked by `SkillGrounding`: the model may not claim technologies the profile does not have.
+- CV tailoring returns ids only (projects, bullets, skill groups); bullet text always comes from the owner's CV JSON.
+- LinkedIn: only canonical `/jobs/view/{id}/` links are stored (tracking links carry personal tokens); job pages are never fetched.
 - Secrets only via `dotnet user-secrets` (project `src/SystematiaBot.Bot`) or env vars / `.env`. Never in code, logs or commits.
 - Code, comments, commits: English. Bot UI and README: Ukrainian.
 - Commits: Conventional Commits (`feat(jobs): ...`, `fix(bot): ...`).

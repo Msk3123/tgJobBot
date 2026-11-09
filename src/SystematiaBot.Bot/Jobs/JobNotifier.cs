@@ -1,6 +1,7 @@
 using SystematiaBot.Bot.Routing;
 using SystematiaBot.Bot.UI;
 using SystematiaBot.Core.Abstractions;
+using SystematiaBot.Core.Jobs;
 using static SystematiaBot.Bot.UI.Keyboards;
 
 namespace SystematiaBot.Bot.Jobs;
@@ -28,7 +29,9 @@ public sealed class JobNotifier(BotUi ui, ILogger<JobNotifier> logger)
             sent++;
         }
 
-        var pending = (await vacancies.GetUnnotifiedAsync(ct)).OrderByDescending(v => v.FitScore ?? -1).ToList();
+        // Best first: fit × freshness, so a fresh 70% beats a two-week-old 75% that already has a hundred applicants.
+        var now = DateTimeOffset.UtcNow;
+        var pending = (await vacancies.GetUnnotifiedAsync(ct)).OrderByDescending(v => VacancyPriority.Score(v, now) ?? -1).ToList();
         foreach (var vacancy in pending.Take(MaxVacancyCards))
         {
             await ui.SendAsync(chatId, JobViews.Card(vacancy), JobViews.CardKeyboard(vacancy), ct);

@@ -25,7 +25,11 @@ public sealed class MailPoller(
     ILogger<MailPoller> logger) : BackgroundService
 {
     private static readonly TimeSpan ErrorReminder = TimeSpan.FromHours(6);
-    private DateTimeOffset _lastSync = DateTimeOffset.MinValue;
+    private static readonly TimeSpan FollowUpCheck = TimeSpan.FromHours(1);
+    private const int MaxFollowUpsPerCheck = 3;
+    private DateTimeOffset _lastMail = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastFeeds = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastFollowUps = DateTimeOffset.MinValue;
     private (string Message, DateTimeOffset At)? _lastReportedError;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,16 +63,26 @@ public sealed class MailPoller(
     private async Task TickAsync(long owner, CancellationToken ct)
     {
         var now = clock.UtcNow;
-        if (now - _lastSync >= TimeSpan.FromMinutes(Math.Max(1, jobOptions.Value.PollMinutes)))
+        var mailDue = now - _lastMail >= TimeSpan.FromMinutes(Math.Max(1, jobOptions.Value.PollMinutes));
+        var feedsDue = now - _lastFeeds >= TimeSpan.FromMinutes(Math.Max(5, jobOptions.Value.FeedPollMinutes));
+        if (mailDue || feedsDue)
         {
-            _lastSync = now;
-            var outcome = await coordinator.RunAsync(owner, ct);
+            var outcome = await coordinator.RunAsync(owner, mailDue, feedsDue, ct);
+            if (!outcome.Skipped)
+            {
+                if (mailDue)
+                    _lastMail = now;
+                if (feedsDue)
+                    _lastFeeds = now;
+            }
+
             if (outcome.Error is { } error && ShouldReport(error, now))
                 await ui.SendAsync(owner, $"⚠️ <b>Не вдалося перевірити пошту</b>\n{Escape(error)}", Rows([Btn("ℹ️ Статус", Cb.Status)]), ct);
             else if (outcome.Error is null && !outcome.Skipped)
                 _lastReportedError = null;
         }
 
+        await SendFollowUpsIfDueAsync(owner, ct);
         await SendDigestIfDueAsync(owner, ct);
     }
 
@@ -79,6 +93,29 @@ public sealed class MailPoller(
             return false;
         _lastReportedError = (error, now);
         return true;
+    }
+
+    /// <summary>Hourly, in working hours only: applications with no reply after Jobs:FollowUpDays get one reminder each.</summary>
+    private async Task SendFollowUpsIfDueAsync(long owner, CancellationToken ct)
+    {
+        var now = clock.UtcNow;
+        var local = KyivTime.ToKyiv(now);
+        if (now - _lastFollowUps < FollowUpCheck || local.Hour is < 10 or >= 20)
+            return;
+        _lastFollowUps = now;
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var vacancies = scope.ServiceProvider.GetRequiredService<IVacancyRepository>();
+        var mails = scope.ServiceProvider.GetRequiredService<IMailEventRepository>();
+        var due = await vacancies.GetFollowUpCandidatesAsync(now.AddDays(-jobOptions.Value.FollowUpDays), ct);
+        foreach (var vacancy in due.Take(MaxFollowUpsPerCheck))
+        {
+            var days = (int)(now - vacancy.AppliedAt!.Value).TotalDays;
+            var inbox = await mails.GetInboxUrlAsync(vacancy.Id, ct);
+            await ui.SendAsync(owner, JobViews.FollowUpCard(vacancy, days), JobViews.FollowUpKeyboard(vacancy, inbox), ct);
+            vacancy.FollowUpRemindedAt = now;
+            await vacancies.SaveChangesAsync(ct);
+        }
     }
 
     private async Task SendDigestIfDueAsync(long owner, CancellationToken ct)
@@ -102,10 +139,11 @@ public sealed class MailPoller(
         var counts = await vacancies.GetCountsAsync(ct);
         int Count(VacancyStatus s) => counts.GetValueOrDefault(s);
 
-        var fresh = await vacancies.GetByStatusAsync(JobViews.NewList, 0, 3, ct);
+        var fresh = (await vacancies.GetByStatusAsync(JobViews.NewList, 0, 200, ct))
+            .OrderByDescending(v => VacancyPriority.Score(v, clock.UtcNow) ?? -1).Take(3).ToList();
         var sb = new StringBuilder("☀️ <b>Ранковий дайджест</b>\n\n");
         sb.AppendLine($"🆕 Нових вакансій: {Count(VacancyStatus.New)}");
-        foreach (var vacancy in fresh.OrderByDescending(v => v.FitScore ?? -1))
+        foreach (var vacancy in fresh)
             sb.AppendLine($"   • {Escape(JobViews.ListItem(vacancy))}");
         if (Count(VacancyStatus.Drafted) > 0)
             sb.AppendLine($"✍️ Чернетки, які ще не подані: {Count(VacancyStatus.Drafted)}");

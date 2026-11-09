@@ -25,6 +25,15 @@ public sealed class DraftWriter(ILlmClient llm, IPromptStore prompts, ILogger<Dr
         return WriteAsync("recruiter_reply", profile, user, ct);
     }
 
+    public Task<Draft?> WriteFollowUpAsync(string profile, Vacancy vacancy, int daysSinceApplied, CancellationToken ct)
+    {
+        var user = $"""
+            {VacancyPrompt.Render(vacancy)}
+            <context>The candidate applied {daysSinceApplied} days ago and has not heard back.</context>
+            """;
+        return WriteAsync("followup", profile, user, ct);
+    }
+
     /// <summary>
     /// One retry when the draft claims technologies missing from the profile; the second attempt is told exactly which ones.
     /// If it still claims them, the draft is returned with the list so the UI can warn instead of silently trusting it.

@@ -14,6 +14,15 @@ public sealed class VacancyRepository(BotDbContext db) : IVacancyRepository
         db.Vacancies.Local.FirstOrDefault(v => v.Source == source && v.ExternalId == externalId)
         ?? await db.Vacancies.FirstOrDefaultAsync(v => v.Source == source && v.ExternalId == externalId, ct);
 
+    public Task<Vacancy?> FindByDedupKeyAsync(string dedupKey, DateTimeOffset since, CancellationToken ct) =>
+        db.Vacancies.Where(v => v.DedupKey == dedupKey && v.FoundAt >= since).OrderBy(v => v.FoundAt).FirstOrDefaultAsync(ct);
+
+    public Task<List<Vacancy>> GetFollowUpCandidatesAsync(DateTimeOffset appliedBefore, CancellationToken ct) =>
+        db.Vacancies.Where(v => v.Status == VacancyStatus.Applied && v.AppliedAt != null && v.AppliedAt <= appliedBefore
+                && v.FollowUpRemindedAt == null && v.FollowUpDoneAt == null)
+            .OrderBy(v => v.AppliedAt)
+            .ToListAsync(ct);
+
     // SQLite stores DateTimeOffset as a long (see BotDbContext), so ordering by it is a plain integer sort.
     public Task<List<Vacancy>> GetByStatusAsync(IReadOnlyCollection<VacancyStatus> statuses, int skip, int take, CancellationToken ct) =>
         db.Vacancies.Where(v => statuses.Contains(v.Status))
@@ -56,6 +65,12 @@ public sealed class MailEventRepository(BotDbContext db) : IMailEventRepository
             .Where(m => !m.Notified && ConversationKinds.Contains(m.Kind))
             .OrderBy(m => m.ReceivedAt)
             .ToListAsync(ct);
+
+    public Task<string?> GetInboxUrlAsync(int vacancyId, CancellationToken ct) =>
+        db.MailEvents.Where(m => m.VacancyId == vacancyId && m.InboxUrl != null)
+            .OrderByDescending(m => m.ReceivedAt)
+            .Select(m => m.InboxUrl)
+            .FirstOrDefaultAsync(ct);
 
     public Task SaveChangesAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SystematiaBot.Core.Abstractions;
 using SystematiaBot.Core.Jobs;
+using SystematiaBot.Infrastructure.Cv;
 using SystematiaBot.Infrastructure.Gmail;
 using SystematiaBot.Infrastructure.Jobs;
 using SystematiaBot.Infrastructure.Llm;
@@ -41,9 +42,23 @@ public static class DependencyInjection
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All, UseCookies = false });
         services.AddSingleton<IVacancyPageFetcher, DjinniPageFetcher>();
 
+        if (configuration.GetSection(JobOptions.Section).GetSection(nameof(JobOptions.DouFeeds)).Get<List<string>>() is { Count: > 0 })
+        {
+            services.AddHttpClient(DouRssFeed.HttpClientName, c =>
+            {
+                c.Timeout = TimeSpan.FromSeconds(20);
+                c.DefaultRequestHeaders.UserAgent.ParseAdd(DjinniPageFetcher.UserAgent);
+            });
+            services.AddSingleton<IVacancyFeed, DouRssFeed>();
+        }
+
+        services.AddSingleton<ICvRenderer, QuestPdfCvRenderer>();
         services.AddScoped<VacancyScorer>();
         services.AddScoped<DraftWriter>();
+        services.AddScoped<CvTailor>();
+        services.AddScoped<VacancyIntake>();
         services.AddScoped<MailSyncService>();
+        services.AddScoped<FeedSyncService>();
         return services;
     }
 

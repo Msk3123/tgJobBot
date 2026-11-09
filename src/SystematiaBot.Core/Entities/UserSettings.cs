@@ -10,4 +10,8 @@ public class UserSettings
     public string? Profile { get; set; }
 
     public DateTimeOffset? LastMailSyncAt { get; set; }
+    public DateTimeOffset? LastFeedSyncAt { get; set; }
+
+    /// <summary>Structured CV (JSON uploaded through the chat) used to build tailored PDFs. Never in git.</summary>
+    public string? CvJson { get; set; }
 }

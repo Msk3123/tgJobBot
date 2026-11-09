@@ -66,6 +66,15 @@ public static class Cb
     public static CallbackData Redraft(int id) => new("v", "redraft", id);
     public static CallbackData Rescore(int id) => new("v", "score", id);
     public static CallbackData SetStatus(int id, string status) => new("v", "st", id, status);
+    public static CallbackData Cv(int id) => new("v", "cv", id);
+    public static CallbackData FollowUp(int id) => new("v", "fu", id);
+    public static CallbackData FollowUpAgain(int id) => new("v", "fu2", id);
+    public static CallbackData FollowUpDone(int id) => new("v", "fud", id);
+    public static CallbackData FollowUpMute(int id) => new("v", "fun", id);
+
+    public static CallbackData CvMenu => new("cv", "show");
+    public static CallbackData CvBase => new("cv", "pdf");
+    public static CallbackData CvTemplate => new("cv", "tpl");
 
     public static CallbackData Conversations(int page = 0) => new("c", "list", page);
     public static CallbackData Conversation(int id) => new("c", "show", id);

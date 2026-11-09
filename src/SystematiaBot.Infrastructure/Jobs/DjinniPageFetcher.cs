@@ -1,4 +1,5 @@
-using System.Text;
+using System.Globalization;
+using System.Text.Json;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Microsoft.Extensions.Logging;
@@ -55,48 +56,55 @@ public static class DjinniPageParser
 
         var descriptionElement = document.QuerySelector(".job-post__description");
         var description = descriptionElement is not null
-            ? ToText(descriptionElement)
+            ? HtmlText.FromElement(descriptionElement)
             : document.QuerySelector("meta[property='og:description']")?.GetAttribute("content")?.Trim();
 
         var bodyText = document.Body?.TextContent ?? "";
         var inactive = InactiveMarkers.Any(m => bodyText.Contains(m, StringComparison.OrdinalIgnoreCase));
+        var (posted, months) = ReadJobPosting(document);
 
-        return new VacancyPage(NullIfEmpty(title), NullIfEmpty(company), NullIfEmpty(description), inactive);
+        return new VacancyPage(NullIfEmpty(title), NullIfEmpty(company), NullIfEmpty(description), inactive, posted, months);
     }
 
-    /// <summary>TextContent glues paragraphs together; this keeps one line per paragraph, list item and &lt;br&gt;.</summary>
-    private static string ToText(IElement root)
+    /// <summary>
+    /// Active vacancies carry schema.org JobPosting JSON-LD (for Google Jobs): datePosted, given without an offset
+    /// and in UTC, and experienceRequirements.monthsOfExperience. Inactive ones drop it.
+    /// </summary>
+    private static (DateTimeOffset? Posted, int? Months) ReadJobPosting(IDocument document)
     {
-        var sb = new StringBuilder();
-        Walk(root, sb);
-        var lines = sb.ToString().Split('\n').Select(l => string.Join(' ', l.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
-        return string.Join('\n', lines.Where(l => l.Length > 0));
-    }
-
-    private static void Walk(INode node, StringBuilder sb)
-    {
-        foreach (var child in node.ChildNodes)
+        foreach (var script in document.QuerySelectorAll("script[type='application/ld+json']"))
         {
-            switch (child)
+            try
             {
-                case IText text:
-                    sb.Append(text.Data);
-                    break;
-                case IElement { TagName: "BR" }:
-                    sb.Append('\n');
-                    break;
-                case IElement element:
-                    var block = element.TagName is "P" or "DIV" or "LI" or "UL" or "OL" or "H1" or "H2" or "H3" or "H4" or "TR";
-                    if (block)
-                        sb.Append('\n');
-                    if (element.TagName == "LI")
-                        sb.Append("• ");
-                    Walk(element, sb);
-                    if (block)
-                        sb.Append('\n');
-                    break;
+                using var json = JsonDocument.Parse(script.TextContent);
+                var postings = json.RootElement.ValueKind == JsonValueKind.Array
+                    ? json.RootElement.EnumerateArray().ToList()
+                    : [json.RootElement];
+                foreach (var posting in postings)
+                {
+                    if (!posting.TryGetProperty("@type", out var type) || type.GetString() != "JobPosting")
+                        continue;
+
+                    DateTimeOffset? posted = posting.TryGetProperty("datePosted", out var date)
+                        && DateTimeOffset.TryParse(date.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
+                            ? parsed
+                            : null;
+                    int? months = posting.TryGetProperty("experienceRequirements", out var exp)
+                        && exp.ValueKind == JsonValueKind.Object
+                        && exp.TryGetProperty("monthsOfExperience", out var m)
+                        && m.TryGetDouble(out var value)
+                            ? (int)Math.Round(value)
+                            : null;
+                    return (posted, months);
+                }
+            }
+            catch (JsonException)
+            {
+                // Malformed JSON-LD is not worth failing the whole vacancy for.
             }
         }
+
+        return (null, null);
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

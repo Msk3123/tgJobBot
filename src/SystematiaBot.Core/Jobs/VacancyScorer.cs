@@ -18,7 +18,7 @@ public sealed class VacancyScorer(ILlmClient llm, IPromptStore prompts, ILogger<
         // The system prompt is identical for every vacancy, so the provider serves it from the prompt cache.
         // The output cap is generous because reasoning tokens count against it; the visible JSON is ~200 tokens.
         var system = prompts.Render("vacancy_score", new Dictionary<string, string> { ["profile"] = profile });
-        var request = new LlmRequest("score", system, VacancyPrompt.Render(vacancy), MaxOutputTokens: 2500);
+        var request = new LlmRequest("score", system, VacancyPrompt.Render(vacancy), MaxOutputTokens: 2500, Cheap: true);
 
         for (var attempt = 1; attempt <= 2; attempt++)
         {
@@ -51,8 +51,12 @@ internal static class VacancyPrompt
         if (description.Length > MaxDescription)
             description = description[..MaxDescription] + "…";
 
+        if (description.Length == 0)
+            description = "(not available — judge by title, company and details only, and say so in gaps)";
+
         return $"""
             <vacancy>
+            Source: {v.Source}
             Title: {v.Title}
             Company: {v.Company ?? "unknown"}
             Salary: {v.Salary ?? "not stated"}

@@ -70,6 +70,17 @@ public sealed class BotUi(ITelegramBotClient bot, ILogger<BotUi> logger)
             parseMode: ParseMode.Html, replyMarkup: markup, cancellationToken: ct);
     }
 
+    public async Task SendDocumentAsync(long chatId, byte[] content, string fileName, string? captionHtml, InlineKeyboardMarkup? markup, CancellationToken ct)
+    {
+        using var stream = new MemoryStream(content);
+        await bot.SendDocument(chatId, InputFile.FromStream(stream, fileName), caption: captionHtml,
+            parseMode: ParseMode.Html, replyMarkup: markup, cancellationToken: ct);
+    }
+
+    /// <summary>Downloads a file the owner sent; the caller checks the size first (bots can fetch up to 20 MB).</summary>
+    public async Task DownloadAsync(string fileId, Stream destination, CancellationToken ct) =>
+        await bot.GetInfoAndDownloadFile(fileId, destination, ct);
+
     public async Task AnswerCallbackAsync(string callbackQueryId, string? text, CancellationToken ct, bool alert = false)
     {
         try

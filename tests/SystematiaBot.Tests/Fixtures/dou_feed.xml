@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Вакансії .NET на DOU</title>
+    <link>https://jobs.dou.ua/vacancies/?category=.NET&amp;exp=0-1</link>
+    <description>Вакансії</description>
+    <item>
+      <title>Junior Back-End Developer (С#, .Net) в Acme Soft, Київ</title>
+      <link>https://jobs.dou.ua/companies/acme/vacancies/300001/?utm_source=jobsrss</link>
+      <description>&lt;p&gt;&lt;b&gt;Acme Soft&lt;/b&gt; — продуктова компанія.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Наші очікування:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Знання OOP, SOLID.&lt;/li&gt;&lt;li&gt;C#, ASP.NET Core.&lt;/li&gt;&lt;/ul&gt;
+
+&lt;div&gt;
+	&lt;a href="https://jobs.dou.ua/companies/acme/vacancies/300001/#reply-btn-id"&gt;Відгукнутись на вакансію&lt;/a&gt;
+&lt;/div&gt;</description>
+      <pubDate>Tue, 03 Nov 2026 13:24:10 +0200</pubDate>
+      <guid>https://jobs.dou.ua/companies/acme/vacancies/300001/?1793705050</guid>
+    </item>
+    <item>
+      <title>Trainee .NET Developer в Example Corp</title>
+      <link>https://jobs.dou.ua/companies/example/vacancies/300002/?utm_source=jobsrss</link>
+      <description>&lt;p&gt;Навчаємо з нуля.&lt;/p&gt;</description>
+      <pubDate>Mon, 09 Nov 2026 09:00:00 +0200</pubDate>
+      <guid>https://jobs.dou.ua/companies/example/vacancies/300002/?1794207600</guid>
+    </item>
+    <item>
+      <title>Без посилання на вакансію</title>
+      <link>https://jobs.dou.ua/</link>
+      <pubDate>Mon, 09 Nov 2026 09:00:00 +0200</pubDate>
+    </item>
+  </channel>
+</rss>

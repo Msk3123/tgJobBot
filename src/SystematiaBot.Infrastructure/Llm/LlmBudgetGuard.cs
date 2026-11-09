@@ -38,9 +38,12 @@ public sealed class LlmBudgetGuard(
                 Day = today,
                 At = clock.UtcNow,
                 Operation = request.Operation,
+                Model = response.Model,
                 InputTokens = response.InputTokens,
+                CachedTokens = response.CachedTokens,
                 OutputTokens = response.OutputTokens,
-                CostUsd = Cost(response.InputTokens, response.OutputTokens)
+                ReasoningTokens = response.ReasoningTokens,
+                CostUsd = Cost(response)
             }, CancellationToken.None);
         }
         finally
@@ -59,6 +62,16 @@ public sealed class LlmBudgetGuard(
 
     public DateOnly Today() => DateOnly.FromDateTime(KyivTime.ToKyiv(clock.UtcNow).DateTime);
 
-    public double Cost(int inputTokens, int outputTokens) =>
-        inputTokens * options.Value.InputPricePerMillionUsd / 1_000_000 + outputTokens * options.Value.OutputPricePerMillionUsd / 1_000_000;
+    /// <summary>Cached input is billed at the cached rate; reasoning tokens are already part of the output count.</summary>
+    public double Cost(LlmResponse response)
+    {
+        var o = options.Value;
+        var cheap = response.Model is not null && response.Model == o.CheapModel;
+        var (input, cached, output) = cheap
+            ? (o.CheapInputPricePerMillionUsd, o.CheapCachedInputPricePerMillionUsd, o.CheapOutputPricePerMillionUsd)
+            : (o.InputPricePerMillionUsd, o.CachedInputPricePerMillionUsd, o.OutputPricePerMillionUsd);
+
+        var cachedTokens = Math.Min(response.CachedTokens, response.InputTokens);
+        return ((response.InputTokens - cachedTokens) * input + cachedTokens * cached + response.OutputTokens * output) / 1_000_000;
+    }
 }

@@ -7,6 +7,7 @@ using SystematiaBot.Bot.State;
 using SystematiaBot.Bot.UI;
 using SystematiaBot.Core.Abstractions;
 using SystematiaBot.Core.Entities;
+using SystematiaBot.Core.Jobs;
 using SystematiaBot.Infrastructure.Llm;
 using static SystematiaBot.Bot.UI.Keyboards;
 using static SystematiaBot.Bot.UI.MessageFormatter;
@@ -21,6 +22,8 @@ public sealed class MenuHandler(
     IUserSettingsRepository settingsRepository,
     IVacancyRepository vacancies,
     IMailbox mailbox,
+    FeedSyncService feeds,
+    ILlmUsageRepository usage,
     LlmBudgetGuard llm,
     IOptions<OpenAiOptions> openAiOptions,
     IOptions<BotOptions> botOptions,
@@ -64,7 +67,9 @@ public sealed class MenuHandler(
         sb.AppendLine();
         sb.AppendLine(mailbox.IsConfigured
             ? $"📬 Пошта: {(settings.LastMailSyncAt is { } at ? "перевірено " + JobViews.Date(at) : "ще не перевіряли")}"
-            : "⚠️ Gmail не підключено — бот не бачить листів Djinni");
+            : "⚠️ Gmail не підключено — бот не бачить листів Djinni і LinkedIn");
+        if (feeds.HasFeeds)
+            sb.AppendLine($"🌐 DOU: {(settings.LastFeedSyncAt is { } feedAt ? "перевірено " + JobViews.Date(feedAt) : "ще не перевіряли")}");
         sb.AppendLine(string.IsNullOrWhiteSpace(settings.Profile)
             ? "⚠️ Профіль порожній — вакансії не оцінюються. Натисни «👤 Профіль»."
             : $"👤 Профіль: {Plural(settings.Profile.Length, "символ", "символи", "символів")}");
@@ -76,23 +81,39 @@ public sealed class MenuHandler(
     public async Task<string?> StartSyncAsync(ChatContext ctx, CancellationToken ct)
     {
         if (jobs.IsRunning(ctx.ChatId, "sync"))
-            return "Вже перевіряю пошту…";
+            return "Вже перевіряю…";
 
-        var progress = await ui.StartProgressAsync(ctx, "⏳ Перевіряю пошту…", ct);
+        var progress = await ui.StartProgressAsync(ctx, "⏳ Перевіряю пошту і DOU…", ct);
         jobs.TryStart(ctx.ChatId, "sync", async jobCt =>
         {
-            var outcome = await coordinator.RunAsync(ctx.ChatId, jobCt);
-            var text = outcome switch
-            {
-                { Skipped: true } => "⏳ Пошта вже перевіряється за розкладом, нові картки прийдуть окремими повідомленнями.",
-                { Error: { } error } => $"⚠️ <b>Не вдалося перевірити пошту</b>\n{Escape(error)}",
-                { Result: { } r } when r.MailsRead == 0 => "✅ Нових листів від Djinni немає.",
-                { Result: { } r } => $"✅ Прочитано листів: {r.MailsRead}\n🆕 Нових вакансій: {r.NewVacancies} · 📩 Відповідей: {r.NewEvents}\nКартки — вище.",
-                _ => "✅ Готово."
-            };
-            await progress.CompleteAsync(text, Rows(BackToMenu), jobCt);
+            var outcome = await coordinator.RunAsync(ctx.ChatId, mail: true, feeds: true, jobCt);
+            await progress.CompleteAsync(SyncText(outcome), Rows(BackToMenu), jobCt);
         });
         return null;
+    }
+
+    private static string SyncText(SyncOutcome outcome)
+    {
+        if (outcome.Skipped)
+            return "⏳ Перевірка вже йде за розкладом, нові картки прийдуть окремими повідомленнями.";
+
+        var sb = new StringBuilder();
+        if (outcome.Error is { } error)
+            sb.AppendLine($"⚠️ <b>Не вдалося перевірити пошту</b>\n{Escape(error)}");
+        else if (outcome.MailNotConfigured)
+            sb.AppendLine("📭 Gmail не підключено — листи Djinni і LinkedIn не читаю.");
+        else if (outcome.Mail is { } mail)
+            sb.AppendLine(mail.MailsRead == 0
+                ? "📬 Нових листів немає."
+                : $"📬 Листів: {mail.MailsRead} · 🆕 вакансій: {mail.NewVacancies} · 📩 відповідей: {mail.NewEvents}");
+
+        if (outcome.FeedVacancies is { } fromFeeds)
+            sb.AppendLine($"🌐 DOU: нових вакансій {fromFeeds}");
+
+        sb.Append(outcome.CardsSent > 0
+            ? $"\n✅ Карток надіслано: {outcome.CardsSent} — вони вище."
+            : "\n✅ Нових карток немає. Слабкі збіги й відфільтровані — у «🆕 Нові» та архіві.");
+        return sb.ToString();
     }
 
     public async Task ShowStatusAsync(ChatContext ctx, CancellationToken ct)
@@ -104,11 +125,26 @@ public sealed class MenuHandler(
         sb.AppendLine($"Аптайм: {(int)uptime.TotalDays} д {uptime.Hours} год {uptime.Minutes} хв");
         sb.AppendLine($"Фонових задач: {jobs.RunningCount}");
         sb.AppendLine($"Gmail: {(mailbox.IsConfigured ? "підключено" : "не підключено")} · остання перевірка: {(settings.LastMailSyncAt is { } at ? JobViews.Date(at) : "—")}");
+        sb.AppendLine(feeds.HasFeeds
+            ? $"DOU RSS: остання перевірка {(settings.LastFeedSyncAt is { } feedAt ? JobViews.Date(feedAt) : "—")}"
+            : "DOU RSS: вимкнено (Jobs:DouFeeds)");
+        sb.AppendLine($"CV: {(string.IsNullOrWhiteSpace(settings.CvJson) ? "не завантажено (/cv)" : "є")}");
 
         if (openAiOptions.Value.IsConfigured)
         {
-            var spent = await llm.GetSpentAsync(llm.Today(), ct);
-            sb.AppendLine($"OpenAI сьогодні: ${spent:0.000} з ${openAiOptions.Value.DailyBudgetUsd:0.00} ({Escape(openAiOptions.Value.Model)})");
+            var o = openAiOptions.Value;
+            var today = llm.Today();
+            var spent = await llm.GetSpentAsync(today, ct);
+            sb.AppendLine();
+            sb.AppendLine($"🤖 <b>OpenAI</b> · оцінка: {Escape(o.CheapModel ?? o.Model)} · тексти: {Escape(o.Model)}");
+            sb.AppendLine($"Сьогодні: ${spent:0.000} з ${o.DailyBudgetUsd:0.00}");
+            foreach (var row in await usage.GetSummaryAsync(today, ct))
+                sb.AppendLine("  " + UsageLine(row));
+
+            var month = await usage.GetSummaryAsync(new DateOnly(today.Year, today.Month, 1), ct);
+            if (month.Count > 0)
+                sb.AppendLine($"За місяць: ${month.Sum(r => r.CostUsd):0.00} · {Plural(month.Sum(r => r.Calls), "виклик", "виклики", "викликів")}");
+            sb.AppendLine();
         }
         else
         {
@@ -120,4 +156,18 @@ public sealed class MenuHandler(
             : "Помилок з моменту запуску не було ✅");
         await ui.ShowAsync(ctx, sb.ToString(), Rows(BackToMenu), ct);
     }
+
+    /// <summary>"gpt-6-luna: 23 виклики · in 41.2k (кеш 30.1k) · out 5.3k (reasoning 2.0k) · $0.004"</summary>
+    private static string UsageLine(LlmUsageSummary row)
+    {
+        var line = new StringBuilder($"{Escape(row.Model)}: {Plural(row.Calls, "виклик", "виклики", "викликів")} · in {Tokens(row.InputTokens)}");
+        if (row.CachedTokens > 0)
+            line.Append($" (кеш {Tokens(row.CachedTokens)})");
+        line.Append($" · out {Tokens(row.OutputTokens)}");
+        if (row.ReasoningTokens > 0)
+            line.Append($" (reasoning {Tokens(row.ReasoningTokens)})");
+        return line.Append($" · ${row.CostUsd:0.000}").ToString();
+    }
+
+    private static string Tokens(long n) => n >= 1000 ? $"{n / 1000.0:0.0}k" : n.ToString();
 }

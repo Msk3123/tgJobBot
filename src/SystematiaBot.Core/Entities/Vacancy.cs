@@ -4,7 +4,7 @@ public class Vacancy
 {
     public int Id { get; set; }
 
-    /// <summary>Job board, e.g. "djinni".</summary>
+    /// <summary>Job board: "djinni", "dou" or "linkedin".</summary>
     public required string Source { get; set; }
 
     /// <summary>Id on the job board (djinni.co/jobs/{ExternalId}-slug).</summary>
@@ -20,6 +20,21 @@ public class Vacancy
 
     public string? Description { get; set; }
     public bool IsInactive { get; set; }
+
+    /// <summary>When the board published (or last bumped) the vacancy; drives the freshness part of the priority.</summary>
+    public DateTimeOffset? PostedAt { get; set; }
+
+    /// <summary>Required experience in months, when the board states it.</summary>
+    public int? ExperienceMonths { get; set; }
+
+    /// <summary>Normalized "company|title" used to spot the same vacancy on several boards.</summary>
+    public string? DedupKey { get; set; }
+
+    /// <summary>The same vacancy on other boards, one "source url" per line.</summary>
+    public string? AlsoOn { get; set; }
+
+    /// <summary>Why the rule-based prefilter skipped it without spending an LLM call.</summary>
+    public string? FilterReason { get; set; }
 
     public VacancyStatus Status { get; set; }
     public int? FitScore { get; set; }
@@ -44,4 +59,8 @@ public class Vacancy
 
     /// <summary>The owner already got a card about this vacancy.</summary>
     public bool Notified { get; set; }
+
+    public DateTimeOffset? FollowUpRemindedAt { get; set; }
+    public DateTimeOffset? FollowUpDoneAt { get; set; }
+    public string? FollowUpDraft { get; set; }
 }
